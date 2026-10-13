@@ -1,86 +1,154 @@
-﻿'use client';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Club, Diamond, Heart, Spade } from 'lucide-react';
-import { useState } from 'react';
+'use client';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/components/AuthProvider';
+import { SoundButton } from '@/components/ui/SoundButton';
+import { SoundLink } from '@/components/ui/SoundLink';
+import { Play, Trophy, User, Settings, LogOut, Heart, Club, Diamond } from 'lucide-react';
 
 export default function MenuPage() {
   const router = useRouter();
-  const [isDifficultyDialogOpen, setDifficultyDialogOpen] = useState(false);
+  const { profile, userId } = useAuth();
+  const [stats, setStats] = useState({ wins: 0, total: 0 });
 
-  const handlePlayVsAI = (difficulty: 'easy' | 'medium' | 'hard') => {
-    setDifficultyDialogOpen(false);
+  useEffect(() => {
+    if (!userId) {
+      router.push('/auth');
+      return;
+    }
+
+    const loadStats = async () => {
+      const { data } = await supabase
+        .from('leaderboard')
+        .select('wins, total_games')
+        .eq('id', userId)
+        .single();
+      
+      if (data) {
+        setStats({ wins: data.wins || 0, total: data.total_games || 0 });
+      }
+    };
+    loadStats();
+  }, [userId, router]);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push('/auth');
+  };
+
+  const handlePlay = (difficulty: string) => {
     router.push(`/game?difficulty=${difficulty}`);
   };
 
   return (
-    <main className="relative flex min-h-screen flex-col items-center justify-center p-8 text-white overflow-hidden bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-yellow-300 via-orange-500 to-orange-800">
-      <div className="relative z-10 text-center flex flex-col items-center">
-        
-        {/* Logo animé */}
-        <div className="flex flex-col items-center mb-6">
-          <div className="flex items-center justify-center -space-x-8 mb-4">
-            <div className="relative transform -rotate-12 bg-white/90 p-3 rounded-lg border-4 border-white w-28 h-40 flex items-center justify-center shadow-xl">
-              <Heart className="w-20 h-20 text-red-500" fill="currentColor" />
+    <div className="relative min-h-screen flex items-center justify-center p-4 overflow-hidden bg-[radial-gradient(ellipse_at_center,_#ff6b35_0%,_#d62828_40%,_#6a040f_100%)]">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(255,200,0,0.3)_0%,_transparent_60%)]"></div>
+      <div className="absolute inset-2 border-4 border-yellow-400/60 rounded-3xl pointer-events-none"></div>
+
+      <div className="relative z-10 w-full max-w-2xl">
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <div className="flex items-center justify-center -space-x-6 mb-4">
+            <div className="bg-white/90 p-2 rounded-lg border-2 border-white w-16 h-24 flex items-center justify-center shadow-xl transform -rotate-12">
+              <Heart className="w-10 h-10 text-red-500" fill="currentColor" />
             </div>
-            <div className="relative z-10 bg-white/90 p-4 rounded-lg border-4 border-white w-32 h-44 flex items-center justify-center shadow-2xl">
-              <Club className="w-24 h-24 text-green-700" fill="currentColor" />
+            <div className="bg-white/90 p-3 rounded-lg border-2 border-white w-20 h-28 flex items-center justify-center shadow-2xl z-10">
+              <Club className="w-14 h-14 text-green-700" fill="currentColor" />
             </div>
-            <div className="relative transform rotate-12 bg-white/90 p-3 rounded-lg border-4 border-white w-28 h-40 flex items-center justify-center shadow-xl">
-              <Diamond className="w-20 h-20 text-blue-600" fill="currentColor" />
+            <div className="bg-white/90 p-2 rounded-lg border-2 border-white w-16 h-24 flex items-center justify-center shadow-xl transform rotate-12">
+              <Diamond className="w-10 h-10 text-blue-600" fill="currentColor" />
             </div>
           </div>
-          <h1 className="text-7xl md:text-8xl font-bold text-yellow-400" style={{ fontFamily: "'Arial Black', sans-serif", WebkitTextStroke: '4px #9A3412', textShadow: '6px 6px 0px #9A3412' }}>
+          <h1 className="text-6xl font-black text-yellow-400" style={{ WebkitTextStroke: '3px #9A3412', textShadow: '4px 4px 0px #9A3412' }}>
             WILD CARD
           </h1>
+          {profile && (
+            <div className="mt-4 flex items-center justify-center gap-3">
+              <img 
+                src={profile.avatar_url} 
+                alt={profile.pseudo}
+                className="w-12 h-12 rounded-full border-2 border-yellow-400 shadow-lg object-cover"
+              />
+              <p className="text-white font-bold text-xl">Bonjour, {profile.pseudo} !</p>
+            </div>
+          )}
         </div>
 
-        {/* Boutons du menu */}
-        <div className="flex flex-col gap-4 mt-8 w-80">
-          <Button
-            size="lg"
-            onClick={() => setDifficultyDialogOpen(true)}
-            className="w-full bg-orange-500 hover:bg-orange-600 border-b-8 border-orange-700 text-white text-3xl font-bold py-8 rounded-full shadow-lg transform hover:scale-105 transition-transform duration-300"
-          >
-            Jouer vs IA
-          </Button>
-          
-          <Link href="/local" className="w-full">
-            <Button
-              size="lg"
-              className="w-full bg-purple-500 hover:bg-purple-600 border-b-8 border-purple-700 text-white text-xl font-bold py-6 rounded-full shadow-lg transform hover:scale-105 transition-transform duration-300"
-            >
-              Multi Local
-            </Button>
-          </Link>
+        {/* Stats rapides */}
+        <div className="flex justify-center gap-4 mb-8">
+          <div className="bg-white/20 backdrop-blur-sm rounded-xl px-6 py-3 border-2 border-yellow-400/50">
+            <p className="text-yellow-400 text-sm font-bold">Parties jouées</p>
+            <p className="text-white text-2xl font-black">{stats.total}</p>
+          </div>
+          <div className="bg-white/20 backdrop-blur-sm rounded-xl px-6 py-3 border-2 border-yellow-400/50">
+            <p className="text-yellow-400 text-sm font-bold">Victoires</p>
+            <p className="text-white text-2xl font-black">{stats.wins}</p>
+          </div>
+        </div>
 
-          <div className="flex gap-4 w-full mt-4">
-            <Link href="/rules" className="w-full">
-              <Button variant="outline" className="w-full bg-green-600 hover:bg-green-700 border-b-8 border-green-800 text-white text-xl font-bold py-6 rounded-full shadow-lg">Règles</Button>
-            </Link>
-            <Link href="/settings" className="w-full">
-              <Button variant="outline" className="w-full bg-blue-500 hover:bg-blue-600 border-b-8 border-blue-700 text-white text-xl font-bold py-6 rounded-full shadow-lg">Paramètres</Button>
-            </Link>
+        {/* Menu principal */}
+        <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-8 shadow-2xl border-2 border-yellow-400 space-y-4">
+          <h2 className="text-2xl font-bold text-center mb-6 text-gray-800">Menu Principal</h2>
+
+          {/* Boutons de difficulté */}
+          <div className="space-y-3">
+            <SoundButton
+              onClick={() => handlePlay('easy')}
+              className="w-full bg-gradient-to-b from-green-400 to-green-600 hover:from-green-500 hover:to-green-700 text-white font-black border-b-4 border-green-800 shadow-lg text-lg py-6"
+            >
+              <Play className="w-6 h-6 mr-2" /> Facile
+            </SoundButton>
+
+            <SoundButton
+              onClick={() => handlePlay('medium')}
+              className="w-full bg-gradient-to-b from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-black font-black border-b-4 border-yellow-800 shadow-lg text-lg py-6"
+            >
+              <Play className="w-6 h-6 mr-2" /> Moyen
+            </SoundButton>
+
+            <SoundButton
+              onClick={() => handlePlay('hard')}
+              className="w-full bg-gradient-to-b from-red-500 to-red-700 hover:from-red-600 hover:to-red-800 text-white font-black border-b-4 border-red-900 shadow-lg text-lg py-6"
+            >
+              <Play className="w-6 h-6 mr-2" /> Difficile
+            </SoundButton>
+          </div>
+
+          {/* Séparateur */}
+          <div className="border-t-2 border-gray-300 my-6"></div>
+
+          {/* Autres boutons */}
+          <div className="grid grid-cols-2 gap-3">
+            <SoundLink href="/leaderboard" className="w-full">
+              <button className="w-full bg-gradient-to-b from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800 text-white font-bold border-b-4 border-purple-900 shadow-lg py-4 flex items-center justify-center gap-2">
+                <Trophy className="w-5 h-5" /> Classement
+              </button>
+            </SoundLink>
+
+            <SoundLink href="/settings" className="w-full">
+              <button className="w-full bg-gradient-to-b from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 text-white font-bold border-b-4 border-blue-900 shadow-lg py-4 flex items-center justify-center gap-2">
+                <Settings className="w-5 h-5" /> Paramètres
+              </button>
+            </SoundLink>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <SoundLink href="/profile" className="w-full">
+              <button className="w-full bg-gradient-to-b from-pink-500 to-pink-700 hover:from-pink-600 hover:to-pink-800 text-white font-bold border-b-4 border-pink-900 shadow-lg py-4 flex items-center justify-center gap-2">
+                <User className="w-5 h-5" /> Mon Profil
+              </button>
+            </SoundLink>
+
+            <SoundButton
+              onClick={handleLogout}
+              className="w-full bg-gradient-to-b from-gray-500 to-gray-700 hover:from-gray-600 hover:to-gray-800 text-white font-bold border-b-4 border-gray-900 shadow-lg py-4 flex items-center justify-center gap-2"
+            >
+              <LogOut className="w-5 h-5" /> Déconnexion
+            </SoundButton>
           </div>
         </div>
       </div>
-
-      {/* Dialogue de difficulté */}
-      <Dialog open={isDifficultyDialogOpen} onOpenChange={setDifficultyDialogOpen}>
-        <DialogContent className="sm:max-w-[425px] bg-white text-black">
-          <DialogHeader>
-            <DialogTitle className="text-2xl">Choisissez la difficulté</DialogTitle>
-            <DialogDescription>Sélectionnez le niveau de l'IA pour cette partie.</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <Button onClick={() => handlePlayVsAI('easy')} className="h-16 bg-green-500 hover:bg-green-600 text-white text-xl font-bold">🌱 Facile</Button>
-            <Button onClick={() => handlePlayVsAI('medium')} className="h-16 bg-yellow-500 hover:bg-yellow-600 text-white text-xl font-bold">⚔️ Moyen</Button>
-            <Button onClick={() => handlePlayVsAI('hard')} className="h-16 bg-red-500 hover:bg-red-600 text-white text-xl font-bold">🔥 Difficile</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </main>
+    </div>
   );
 }

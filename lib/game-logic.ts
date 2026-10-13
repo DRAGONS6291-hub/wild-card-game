@@ -1,4 +1,4 @@
-﻿import { GameCard, GameState, Player, SUITS, RANKS, Suit, LocalGameState, LocalPlayer, Difficulty } from './game-types';
+import { GameCard, GameState, Player, SUITS, RANKS, Suit, LocalGameState, LocalPlayer, Difficulty } from './game-types';
 
 export const createDeck = (): GameCard[] => {
   const deck: GameCard[] = [];
@@ -53,6 +53,7 @@ export const createInitialGameState = (difficulty: Difficulty = 'medium'): GameS
     currentPlayer: 'player', forcedSuit: null, winner: null, isAiThinking: false,
     gameMessage: "À votre tour ! Jouez une carte ou piochez.",
     isSuitPickerOpen: false, canPlayerEndTurn: false, pendingDraw: 0, extraTurn: false, difficulty,
+    jokerPendingDraw: false, // NOUVEAU
   };
 };
 
@@ -85,8 +86,16 @@ export const createInitialLocalGameState = (playerNames: string[]): LocalGameSta
   };
 };
 
-export const isPlayable = (card: GameCard, topCard: GameCard, forcedSuit: Suit | null, pendingDraw?: number): boolean => {
-  if (pendingDraw && pendingDraw > 0) return card.rank === '7';
+// CORRECTION : on ne peut pas jouer un 7 sur un Joker (jokerPendingDraw = true)
+export const isPlayable = (card: GameCard, topCard: GameCard, forcedSuit: Suit | null, pendingDraw?: number, jokerPendingDraw?: boolean): boolean => {
+  // Si on doit piocher à cause d'un Joker, on ne peut PAS contrer avec un 7
+  if (jokerPendingDraw) {
+    return false; // Aucune carte n'est jouable, il faut piocher
+  }
+  // Si on doit piocher à cause d'un 7, on peut contrer avec un autre 7
+  if (pendingDraw && pendingDraw > 0) {
+    return card.rank === '7';
+  }
   if (card.isJoker) return true;
   if (card.rank === 'Jack') return true;
   const effectiveTopSuit = topCard.isJoker ? forcedSuit : topCard.suit;

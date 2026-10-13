@@ -1,4 +1,4 @@
-﻿export const SUITS = ['Hearts', 'Diamonds', 'Clubs', 'Spades'] as const;
+export const SUITS = ['Hearts', 'Diamonds', 'Clubs', 'Spades'] as const;
 export const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'Jack', 'Queen', 'King', 'Ace'] as const;
 
 export const SUITS_FR: Record<Suit, string> = {
@@ -45,6 +45,7 @@ export interface GameState {
   pendingDraw: number;
   extraTurn: boolean;
   difficulty: Difficulty;
+  jokerPendingDraw: boolean; // NOUVEAU : true si les cartes à piocher viennent d'un Joker
 }
 
 export interface LocalPlayer {

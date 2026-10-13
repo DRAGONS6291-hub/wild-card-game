@@ -1,42 +1,146 @@
-﻿'use client';
+'use client';
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/components/AuthProvider';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Trophy, Target, RotateCcw } from 'lucide-react';
-
-interface GameStats { gamesPlayed: number; gamesWon: number; gamesLost: number; }
+import { ArrowLeft, LogOut, Trophy, Target, Activity, User } from 'lucide-react';
 
 export default function SettingsPage() {
-  const [stats, setStats] = useState<GameStats>({ gamesPlayed: 0, gamesWon: 0, gamesLost: 0 });
-  useEffect(() => { const savedStats = localStorage.getItem('wildCardStats'); if (savedStats) setStats(JSON.parse(savedStats)); }, []);
-  const handleResetStats = () => { if (confirm('Êtes-vous sûr de vouloir réinitialiser vos statistiques ?')) { const newStats = { gamesPlayed: 0, gamesWon: 0, gamesLost: 0 }; setStats(newStats); localStorage.setItem('wildCardStats', JSON.stringify(newStats)); } };
-  const winRate = stats.gamesPlayed > 0 ? ((stats.gamesWon / stats.gamesPlayed) * 100).toFixed(1) : '0.0';
+  const router = useRouter();
+  const { profile, userId } = useAuth();
+  const [stats, setStats] = useState({
+    total: 0,
+    wins: 0,
+    losses: 0,
+    winRate: 0,
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (!userId) {
+        setLoading(false);
+        return;
+      }
+
+      // On utilise la vue 'leaderboard' qu'on a déjà créée, filtrée sur l'utilisateur
+      const { data, error } = await supabase
+        .from('leaderboard')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (data && !error) {
+        setStats({
+          total: data.total_games || 0,
+          wins: data.wins || 0,
+          losses: data.losses || 0,
+          winRate: data.win_rate || 0,
+        });
+      } else {
+        // Si aucune donnée (0 partie jouée), on met tout à 0
+        setStats({ total: 0, wins: 0, losses: 0, winRate: 0 });
+      }
+      setLoading(false);
+    };
+
+    fetchStats();
+  }, [userId]);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push('/auth');
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(ellipse_at_center,_#ff6b35_0%,_#d62828_40%,_#6a040f_100%)]">
+        <p className="text-white text-2xl font-bold">Chargement des statistiques...</p>
+      </div>
+    );
+  }
 
   return (
-    <main className="min-h-screen bg-background p-4 md:p-8">
-      <div className="max-w-4xl mx-auto">
+    <div className="relative min-h-screen p-4 overflow-hidden bg-[radial-gradient(ellipse_at_center,_#ff6b35_0%,_#d62828_40%,_#6a040f_100%)]">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(255,200,0,0.3)_0%,_transparent_60%)]"></div>
+      <div className="absolute inset-2 border-4 border-yellow-400/60 rounded-3xl pointer-events-none"></div>
+
+      <div className="relative z-10 max-w-3xl mx-auto pt-8">
+        {/* En-tête */}
         <div className="flex items-center justify-between mb-8">
-          <Link href="/menu"><Button variant="ghost" size="icon"><ArrowLeft className="h-5 w-5" /></Button></Link>
-          <h1 className="text-4xl font-bold text-center flex-1">Paramètres</h1><div />
+          <Link href="/menu" className="flex items-center gap-2 text-white font-bold hover:text-yellow-400 transition-colors">
+            <ArrowLeft className="w-5 h-5" /> Retour au menu
+          </Link>
+          <h1 className="text-3xl font-black text-yellow-400" style={{ WebkitTextStroke: '2px #9A3412', textShadow: '3px 3px 0px #9A3412' }}>
+            MES STATISTIQUES
+          </h1>
+          <div className="w-32"></div>
         </div>
-        <div className="space-y-6">
-          <Card>
-            <CardHeader><CardTitle className="flex items-center gap-2 text-2xl"><Trophy className="h-6 w-6 text-yellow-500" />Statistiques</CardTitle><CardDescription>Vos performances dans Wild Card</CardDescription></CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-primary/10 p-4 rounded-lg text-center"><p className="text-3xl font-bold text-primary">{stats.gamesPlayed}</p><p className="text-sm text-muted-foreground">Parties jouées</p></div>
-                <div className="bg-green-500/10 p-4 rounded-lg text-center"><p className="text-3xl font-bold text-green-600">{stats.gamesWon}</p><p className="text-sm text-muted-foreground">Victoires</p></div>
-                <div className="bg-red-500/10 p-4 rounded-lg text-center"><p className="text-3xl font-bold text-red-600">{stats.gamesLost}</p><p className="text-sm text-muted-foreground">Défaites</p></div>
-                <div className="bg-yellow-500/10 p-4 rounded-lg text-center"><p className="text-3xl font-bold text-yellow-600">{winRate}%</p><p className="text-sm text-muted-foreground">Taux de réussite</p></div>
-              </div>
-              <Button onClick={handleResetStats} variant="destructive" className="w-full mt-4"><RotateCcw className="h-4 w-4 mr-2" />Réinitialiser les statistiques</Button>
-            </CardContent>
-          </Card>
-          <Card><CardHeader><CardTitle className="flex items-center gap-2 text-2xl"><Target className="h-6 w-6 text-blue-500" />À propos</CardTitle></CardHeader><CardContent className="space-y-2"><p><strong>Wild Card</strong> v1.0.0</p><p>Un jeu de cartes de stratégie et de chance.</p><p className="text-sm text-muted-foreground mt-4">Développé avec Next.js, React, TypeScript et Tailwind CSS.</p><p className="text-sm text-muted-foreground">IA propulsée par Google Gemini.</p></CardContent></Card>
-          <div className="flex justify-center pt-4"><Link href="/menu"><Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-6 text-lg">Retour au Menu</Button></Link></div>
+
+        {/* Résumé du profil */}
+        <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-6 shadow-2xl border-2 border-yellow-400 mb-6 flex items-center gap-6">
+          <img 
+            src={profile?.avatar_url || 'https://i.pravatar.cc/150?img=12'} 
+            alt="Avatar" 
+            className="w-24 h-24 rounded-full border-4 border-yellow-400 shadow-lg object-cover"
+          />
+          <div>
+            <h2 className="text-3xl font-black text-gray-800">{profile?.pseudo || 'Joueur'}</h2>
+            <p className="text-gray-600 font-semibold flex items-center gap-2">
+              <User className="w-4 h-4" /> Âge : {profile?.age || 'Non renseigné'} ans
+            </p>
+          </div>
+        </div>
+
+        {/* Grille des statistiques */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          {/* Total parties */}
+          <div className="bg-white/95 backdrop-blur-sm rounded-xl p-6 border-2 border-blue-400 shadow-lg text-center">
+            <Activity className="w-8 h-8 text-blue-500 mx-auto mb-2" />
+            <div className="text-4xl font-black text-gray-800">{stats.total}</div>
+            <div className="text-sm font-bold text-gray-500 uppercase tracking-wider">Parties jouées</div>
+          </div>
+
+          {/* Victoires */}
+          <div className="bg-white/95 backdrop-blur-sm rounded-xl p-6 border-2 border-green-400 shadow-lg text-center">
+            <Trophy className="w-8 h-8 text-green-500 mx-auto mb-2" />
+            <div className="text-4xl font-black text-green-600">{stats.wins}</div>
+            <div className="text-sm font-bold text-gray-500 uppercase tracking-wider">Victoires</div>
+          </div>
+
+          {/* Défaites */}
+          <div className="bg-white/95 backdrop-blur-sm rounded-xl p-6 border-2 border-red-400 shadow-lg text-center">
+            <Target className="w-8 h-8 text-red-500 mx-auto mb-2" />
+            <div className="text-4xl font-black text-red-600">{stats.losses}</div>
+            <div className="text-sm font-bold text-gray-500 uppercase tracking-wider">Défaites</div>
+          </div>
+
+          {/* Taux de victoire */}
+          <div className="bg-white/95 backdrop-blur-sm rounded-xl p-6 border-2 border-yellow-400 shadow-lg text-center">
+            <div className="w-8 h-8 text-yellow-500 mx-auto mb-2 font-black text-2xl flex items-center justify-center">%</div>
+            <div className="text-4xl font-black text-yellow-600">{stats.winRate}%</div>
+            <div className="text-sm font-bold text-gray-500 uppercase tracking-wider">Taux de réussite</div>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex flex-col md:flex-row gap-4 justify-center">
+          <Link href="/profile" className="w-full md:w-auto">
+            <Button className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-6 text-lg border-b-4 border-blue-700 shadow-lg">
+              Modifier mon profil
+            </Button>
+          </Link>
+          
+          <Button 
+            onClick={handleLogout}
+            className="w-full md:w-auto bg-red-600 hover:bg-red-700 text-white font-bold py-6 text-lg border-b-4 border-red-800 shadow-lg flex items-center justify-center gap-2"
+          >
+            <LogOut className="w-5 h-5" /> Se déconnecter
+          </Button>
         </div>
       </div>
-    </main>
+    </div>
   );
 }
