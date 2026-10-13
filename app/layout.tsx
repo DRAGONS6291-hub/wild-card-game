@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { AdScript } from "@/components/AdScript";
@@ -16,6 +16,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fr">
+      <head>
+        {/* 🔍 Vérification Monetag */}
+        <meta name="monetag" content="3dd9cee359bde24f28e2d38e2f2cf9b0" />
+      </head>
       <body className={`antialiased`}>
         <AuthProvider>
           {children}
