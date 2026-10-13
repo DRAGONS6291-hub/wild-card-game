@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Save, User } from 'lucide-react';
+import { getLevelInfo, getTitleForLevel } from '@/lib/level-system';
 
 // 48 AVATARS DESSINÉS - Organisés par catégorie
 const AVATARS = [
@@ -36,7 +37,7 @@ const AVATARS = [
   'https://api.dicebear.com/7.x/fun-emoji/svg?seed=Monkey&backgroundColor=ffdfbf',
   'https://api.dicebear.com/7.x/fun-emoji/svg?seed=Koala&backgroundColor=b6e3f4',
 
-  // 🤖 ROBOTS & OBJETS (12) - Style bottts
+  //  ROBOTS & OBJETS (12) - Style bottts
   'https://api.dicebear.com/7.x/bottts/svg?seed=Robot1&backgroundColor=b6e3f4',
   'https://api.dicebear.com/7.x/bottts/svg?seed=Robot2&backgroundColor=ffd5dc',
   'https://api.dicebear.com/7.x/bottts/svg?seed=Robot3&backgroundColor=c0aede',
@@ -118,6 +119,8 @@ export default function ProfilePage() {
         pseudo: pseudo.trim(),
         age: age ? parseInt(age) : null,
         avatar_url: selectedAvatar,
+        xp: profile?.xp || 0,
+        level: profile?.level || 1,
         updated_at: new Date().toISOString(),
       });
 
@@ -177,6 +180,34 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
+
+          {/* 🎯 Niveau et XP */}
+          {profile && (
+            <div className="mb-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl p-6 text-white shadow-xl">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-sm opacity-80">Niveau</p>
+                  <p className="text-4xl font-black">{profile.level || 1}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm opacity-80">Titre</p>
+                  <p className="text-xl font-bold">{getTitleForLevel(profile.level || 1)}</p>
+                </div>
+              </div>
+              <div className="mt-4">
+                <div className="flex justify-between text-sm mb-1">
+                  <span>XP: {profile.xp || 0}</span>
+                  <span>{getLevelInfo(profile.xp || 0).xpForNextLevel} XP pour niveau {(profile.level || 1) + 1}</span>
+                </div>
+                <div className="w-full bg-white/20 rounded-full h-3 overflow-hidden">
+                  <div 
+                    className="bg-yellow-400 h-full rounded-full transition-all duration-500"
+                    style={{ width: `${getLevelInfo(profile.xp || 0).progress}%` }}
+                  ></div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Sélection d'avatar */}
           <div className="mb-8">

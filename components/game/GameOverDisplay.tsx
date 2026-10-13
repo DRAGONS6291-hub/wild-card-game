@@ -1,22 +1,38 @@
 'use client';
 import { Button } from "@/components/ui/button";
-import { Trophy, Loader2 } from 'lucide-react';
+import { Trophy, Loader2, Sparkles, Star } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useSound } from '@/hooks/useSound';
 import { BannerAd } from '@/components/ads/BannerAd';
+import { calculateXpReward, getLevelInfo } from '@/lib/level-system';
+import { checkAndUnlockAchievements } from '@/lib/achievements';
+import { supabase } from '@/lib/supabase';
 
 interface GameOverDisplayProps { 
   winner: string | { name: string }; 
-  onPlayAgain: () => void; 
+  onPlayAgain: () => void;
+  difficulty?: 'easy' | 'medium' | 'hard';
+  userId?: string;
+  currentStats?: { wins: number; totalGames: number; xp: number; level: number };
 }
 
 const ConfettiPiece = ({ id, style }: { id: number; style: React.CSSProperties }) => (
   <div key={id} className="absolute w-2 h-4 rounded-full" style={style}></div>
 );
 
-export function GameOverDisplay({ winner, onPlayAgain }: GameOverDisplayProps) {
-  const { playVictory, playDefeat } = useSound();
+export function GameOverDisplay({ 
+  winner, 
+  onPlayAgain, 
+  difficulty = 'easy',
+  userId,
+  currentStats
+}: GameOverDisplayProps) {
+  const { playVictory, playDefeat, playAchievement } = useSound();
   const [isAdLoading, setIsAdLoading] = useState(false);
+  const [xpGained, setXpGained] = useState(0);
+  const [newLevel, setNewLevel] = useState<number | null>(null);
+  const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>([]);
+  const [showRewards, setShowRewards] = useState(false);
 
   useEffect(() => {
     let winnerName = '';
@@ -28,24 +44,66 @@ export function GameOverDisplay({ winner, onPlayAgain }: GameOverDisplayProps) {
     } else {
       playDefeat();
     }
-  }, [winner, playVictory, playDefeat]);
 
-  // 🎯 Fonction personnalisée pour le bouton Rejouer
+    // Calculer et appliquer les récompenses
+    if (userId && currentStats) {
+      const won = winnerName === 'player';
+      const xpReward = calculateXpReward(won, difficulty);
+      const newXp = currentStats.xp + xpReward;
+      const levelInfo = getLevelInfo(newXp);
+      
+      setXpGained(xpReward);
+      if (levelInfo.level > currentStats.level) {
+        setNewLevel(levelInfo.level);
+      }
+
+      // Mettre à jour l'XP et le niveau dans la base
+      supabase
+        .from('profiles')
+        .update({ xp: newXp, level: levelInfo.level })
+        .eq('id', userId);
+
+      // Mettre à jour le leaderboard
+      supabase
+        .from('leaderboard')
+        .update({ 
+          wins: won ? currentStats.wins + 1 : currentStats.wins,
+          total_games: currentStats.totalGames + 1,
+          xp: newXp,
+          level: levelInfo.level
+        })
+        .eq('id', userId);
+
+      // Vérifier les succès
+      checkAndUnlockAchievements(userId, {
+        wins: won ? currentStats.wins + 1 : currentStats.wins,
+        totalGames: currentStats.totalGames + 1,
+        level: levelInfo.level,
+        totalXp: newXp,
+        wonOnHard: won && difficulty === 'hard',
+      }).then((newlyUnlocked) => {
+        if (newlyUnlocked.length > 0) {
+          setUnlockedAchievements(newlyUnlocked);
+          playAchievement?.();
+        }
+        setShowRewards(true);
+      });
+    } else {
+      setShowRewards(true);
+    }
+  }, [winner, userId, currentStats, difficulty]);
+
   const handlePlayAgain = () => {
     setIsAdLoading(true);
     
-    // 1. Injecter le script de la Vignette (Format 1) au moment précis du clic
     const script = document.createElement('script');
     script.dataset.zone = '12026343';
     script.src = 'https://n6wxm.com/vignette.min.js';
     document.body.appendChild(script);
 
-    // 2. Attendre 5 secondes pour laisser la pub s'afficher, puis lancer la partie
     setTimeout(() => {
       onPlayAgain();
       setIsAdLoading(false);
-      
-      // 3. Nettoyer le script pour éviter les conflits ou doublons au prochain clic
       if (document.body.contains(script)) {
         document.body.removeChild(script);
       }
@@ -72,11 +130,56 @@ export function GameOverDisplay({ winner, onPlayAgain }: GameOverDisplayProps) {
     <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-50 animate-in fade-in-50">
       <style>{`@keyframes fall { 0% { transform: translateY(-10vh) rotate(0deg); } 100% { transform: translateY(110vh) rotate(720deg); } }`}</style>
       {confetti}
-      <div className="bg-white p-8 rounded-2xl shadow-2xl text-center z-10 max-w-md border-4 border-yellow-400 w-[90%]">
+      <div className="bg-white p-8 rounded-2xl shadow-2xl text-center z-10 max-w-md border-4 border-yellow-400 w-[90%] max-h-[90vh] overflow-y-auto">
         <Trophy className="w-16 h-16 mx-auto text-yellow-500 mb-4" />
         <h2 className="text-3xl font-black mb-4 text-gray-800">{message}</h2>
         
-        {/* 🎯 Format 2 : Bannière discrète (In-Page Push / Tag) */}
+        {/* 🎯 Récompenses XP et succès */}
+        {showRewards && (
+          <div className="my-4 p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border-2 border-purple-200 space-y-3">
+            {/* XP gagné */}
+            <div className="flex items-center justify-center gap-2 text-purple-700 font-bold">
+              <Sparkles className="w-5 h-5" />
+              <span>+{xpGained} XP</span>
+            </div>
+            
+            {/* Nouveau niveau */}
+            {newLevel && (
+              <div className="flex items-center justify-center gap-2 text-yellow-600 font-black animate-pulse">
+                <Star className="w-5 h-5" fill="currentColor" />
+                <span>Niveau {newLevel} atteint !</span>
+              </div>
+            )}
+            
+            {/* Succès débloqués */}
+            {unlockedAchievements.length > 0 && (
+              <div className="pt-2 border-t border-purple-200">
+                <p className="text-xs font-bold text-purple-600 mb-2 uppercase">
+                  🏆 Succès débloqué{unlockedAchievements.length > 1 ? 's' : ''} !
+                </p>
+                <div className="space-y-1">
+                  {unlockedAchievements.map(id => (
+                    <div key={id} className="text-sm bg-white/70 px-3 py-1 rounded-full inline-block mr-1">
+                      {id === 'first_win' && '🏆 Première Victoire'}
+                      {id === 'win_10' && '⚔️ Guerrier'}
+                      {id === 'win_50' && '👑 Champion'}
+                      {id === 'win_100' && '🌟 Légende'}
+                      {id === 'play_10' && '🎮 Habitué'}
+                      {id === 'play_50' && '🔥 Accro'}
+                      {id === 'play_100' && '💪 Vétéran'}
+                      {id === 'hard_win' && '🧠 Maître Stratège'}
+                      {id === 'level_5' && '📈 Niveau 5'}
+                      {id === 'level_10' && ' Niveau 10'}
+                      {id === 'level_25' && '💎 Niveau 25'}
+                      {id === 'xp_1000' && '✨ Millénaire'}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="my-6 p-4 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 overflow-hidden">
           <p className="text-xs text-gray-400 mb-2 font-bold uppercase tracking-wider">Publicité</p>
           <BannerAd />
