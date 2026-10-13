@@ -1,24 +1,29 @@
 'use client';
-import { Button, ButtonProps } from '@/components/ui/button';
 import { useSound } from '@/hooks/useSound';
-import { ReactNode, MouseEvent } from 'react';
 
-interface SoundButtonProps extends ButtonProps {
-  children: ReactNode;
-  onClick?: (e: MouseEvent<HTMLButtonElement>) => void;
+interface SoundButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  children: React.ReactNode;
 }
 
-export function SoundButton({ children, onClick, ...props }: SoundButtonProps) {
-  const { playClick } = useSound();
+export function SoundButton({ children, onClick, className, ...props }: SoundButtonProps) {
+  const { playMenuClick } = useSound();
 
-  const handleClick = (e: MouseEvent<HTMLButtonElement>) => {
-    playClick();
-    if (onClick) onClick(e);
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    // 1. Jouer le son
+    playMenuClick();
+    // 2. Exécuter l'action du bouton (ex: changer de page)
+    if (onClick) {
+      onClick(e);
+    }
   };
 
   return (
-    <Button onClick={handleClick} {...props}>
+    <button 
+      onClick={handleClick} 
+      className={className} 
+      {...props}
+    >
       {children}
-    </Button>
+    </button>
   );
 }
