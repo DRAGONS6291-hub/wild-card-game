@@ -21,6 +21,17 @@ export default function RootLayout({
           {children}
           <Toaster />
           <AdScript />
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `
+                if ('serviceWorker' in navigator) {
+                  navigator.serviceWorker.register('/sw.js')
+                    .then(reg => console.log('Service Worker enregistré'))
+                    .catch(err => console.log('Erreur SW:', err));
+                }
+              `,
+            }}
+          />
         </AuthProvider>
       </body>
     </html>
