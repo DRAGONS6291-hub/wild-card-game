@@ -1,4 +1,5 @@
-'use client';
+﻿'use client';
+import { BannerAd } from '@/components/ads/BannerAd';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -149,6 +150,10 @@ export default function MenuPage() {
           </div>
         </div>
       </div>
+      {/* Bannière discrète en bas du menu */}
+    <div className="mt-8 p-3 bg-black/40 rounded-xl border border-yellow-400/30 flex flex-col items-center">
+      <p className="text-[10px] text-yellow-400/60 font-bold mb-1 uppercase tracking-widest">Sponsorisé</p>
+      <BannerAd />
     </div>
   );
 }
