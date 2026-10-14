@@ -13,10 +13,9 @@ export default function MultiplayerPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchTime, setSearchTime] = useState(0);
   const [matchFound, setMatchFound] = useState(false);
-  const [roomId, setRoomId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState('');
 
-  // Timer pour afficher le temps de recherche
+  // Timer
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isSearching && !matchFound) {
@@ -27,13 +26,48 @@ export default function MultiplayerPage() {
     return () => clearInterval(interval);
   }, [isSearching, matchFound]);
 
-  // Boucle de recherche : essaie de trouver un match toutes les 3 secondes
+  // 1. ÉCOUTER REALTIME pour les 2 joueurs (c'est la clé !)
+  useEffect(() => {
+    if (!userId || !isSearching || matchFound) return;
+
+    const channel = supabase
+      .channel('matchmaking-listener')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'matchmaking_queue',
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          const newStatus = payload.new.status;
+          console.log('🔔 Realtime reçu:', newStatus, payload.new);
+          
+          if (newStatus === 'matched' && payload.new.room_id) {
+            setMatchFound(true);
+            setIsSearching(false);
+            setStatusMessage('Adversaire trouvé ! Redirection...');
+            
+            setTimeout(() => {
+              router.push(`/multiplayer/${payload.new.room_id}`);
+            }, 1500);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId, isSearching, matchFound, router]);
+
+  // 2. Boucle de recherche (appelle find_match toutes les 3s)
   useEffect(() => {
     if (!isSearching || !userId || !profile || matchFound) return;
 
     const searchInterval = setInterval(async () => {
       try {
-        // Appeler la fonction SQL côté serveur
         const { data, error } = await supabase.rpc('find_match', {
           p_user_id: userId,
           p_level: profile.level || 1,
@@ -45,22 +79,21 @@ export default function MultiplayerPage() {
         }
 
         if (data?.success) {
-          // Match trouvé !
+          // Match trouvé directement (on est le "gagnant" du matching)
           setMatchFound(true);
-          setRoomId(data.room_id);
+          setIsSearching(false);
           setStatusMessage('Adversaire trouvé ! Redirection...');
           
-          // Rediriger après 2 secondes
           setTimeout(() => {
             router.push(`/multiplayer/${data.room_id}`);
-          }, 2000);
+          }, 1500);
         } else {
           setStatusMessage('Recherche en cours...');
         }
       } catch (err) {
         console.error('Erreur recherche:', err);
       }
-    }, 3000); // Essaie toutes les 3 secondes
+    }, 3000);
 
     return () => clearInterval(searchInterval);
   }, [isSearching, userId, profile, matchFound, router]);
@@ -71,7 +104,6 @@ export default function MultiplayerPage() {
 
     setIsSearching(true);
     setMatchFound(false);
-    setRoomId(null);
     setSearchTime(0);
     setStatusMessage('Recherche d\'un adversaire...');
 
@@ -92,14 +124,11 @@ export default function MultiplayerPage() {
       setIsSearching(false);
       return;
     }
-
-    // La boucle useEffect va s'occuper de chercher automatiquement
   };
 
-  // Annuler la recherche
+  // Annuler
   const handleCancel = async () => {
     if (!userId) return;
-
     await supabase.rpc('cancel_match', { p_user_id: userId });
     setIsSearching(false);
     setMatchFound(false);
@@ -119,7 +148,6 @@ export default function MultiplayerPage() {
       <div className="absolute inset-2 border-4 border-yellow-400/60 rounded-3xl pointer-events-none"></div>
 
       <div className="relative z-10 max-w-2xl mx-auto pt-8">
-        {/* En-tête */}
         <div className="flex items-center justify-between mb-8">
           <Link href="/menu" className="flex items-center gap-2 text-white font-bold hover:text-yellow-400 transition-colors">
             <ArrowLeft className="w-5 h-5" /> Retour
@@ -132,22 +160,18 @@ export default function MultiplayerPage() {
 
         <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-6 md:p-8 shadow-2xl border-2 border-yellow-400">
           {!isSearching && !matchFound ? (
-            /* Écran initial */
             <div className="text-center space-y-6">
               <div className="flex justify-center mb-6">
                 <div className="bg-gradient-to-br from-purple-500 to-pink-600 p-6 rounded-full shadow-2xl">
                   <Sword className="w-16 h-16 text-white" />
                 </div>
               </div>
-
               <h2 className="text-2xl font-bold text-gray-800">Rechercher un adversaire</h2>
               <p className="text-gray-600">Trouve un joueur en ligne et affronte-le en temps réel !</p>
-
               <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
                 <Users className="w-4 h-4" />
                 <span>Niveau actuel : <strong>{profile?.level || 1}</strong></span>
               </div>
-
               <Button
                 onClick={handleSearch}
                 className="w-full bg-gradient-to-b from-green-400 to-green-600 hover:from-green-500 hover:to-green-700 text-white font-black border-b-4 border-green-800 shadow-lg text-xl py-6"
@@ -157,7 +181,6 @@ export default function MultiplayerPage() {
               </Button>
             </div>
           ) : isSearching && !matchFound ? (
-            /* Animation de recherche */
             <div className="text-center space-y-6 py-8">
               <div className="relative">
                 <div className="w-32 h-32 mx-auto relative">
@@ -168,7 +191,6 @@ export default function MultiplayerPage() {
                   </div>
                 </div>
               </div>
-
               <div>
                 <h2 className="text-2xl font-bold text-gray-800 mb-2">Recherche d'un adversaire...</h2>
                 <p className="text-gray-600">
@@ -176,7 +198,6 @@ export default function MultiplayerPage() {
                 </p>
                 <p className="text-sm text-gray-500 mt-2">{statusMessage}</p>
               </div>
-
               <Button
                 onClick={handleCancel}
                 variant="outline"
@@ -187,15 +208,12 @@ export default function MultiplayerPage() {
               </Button>
             </div>
           ) : (
-            /* Match trouvé ! */
             <div className="text-center space-y-6 py-8">
               <div className="bg-gradient-to-br from-green-400 to-green-600 p-6 rounded-full shadow-2xl mx-auto w-32 h-32 flex items-center justify-center animate-bounce">
                 <Trophy className="w-16 h-16 text-white" />
               </div>
-
               <h2 className="text-3xl font-black text-green-600">Match trouvé !</h2>
               <p className="text-gray-600">{statusMessage}</p>
-
               <div className="flex items-center justify-center gap-2">
                 <Loader2 className="w-6 h-6 animate-spin text-green-600" />
                 <span className="text-gray-600 font-semibold">Chargement de la salle...</span>
