@@ -6,6 +6,8 @@ import { useAuth } from '@/components/AuthProvider';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Loader2, Users, Trophy } from 'lucide-react';
 import Link from 'next/link';
+import { PlayingCard } from '@/components/game/PlayingCard';
+import { GameCard } from '@/lib/game-types';
 
 export default function MultiplayerRoomPage() {
   const router = useRouter();
@@ -20,6 +22,12 @@ export default function MultiplayerRoomPage() {
   const [loading, setLoading] = useState(true);
   const [opponentName, setOpponentName] = useState('Adversaire');
   const [gameStarted, setGameStarted] = useState(false);
+  const [myHand, setMyHand] = useState<GameCard[]>([]);
+  const [opponentHandCount, setOpponentHandCount] = useState(0);
+  const [topCard, setTopCard] = useState<GameCard | null>(null);
+  const [deckCount, setDeckCount] = useState(0);
+  const [message, setMessage] = useState('');
+  const [isMyTurn, setIsMyTurn] = useState(false);
 
   // Charger la salle
   useEffect(() => {
@@ -33,7 +41,6 @@ export default function MultiplayerRoomPage() {
         .single();
 
       if (error || !data) {
-        console.error('Salle introuvable:', error);
         router.push('/multiplayer');
         return;
       }
@@ -42,7 +49,6 @@ export default function MultiplayerRoomPage() {
       const p1 = data.player1_id === userId;
       setIsPlayer1(p1);
       
-      // Récupérer le pseudo de l'adversaire
       const opponentId = p1 ? data.player2_id : data.player1_id;
       if (opponentId) {
         const { data: profileData } = await supabase
@@ -51,6 +57,25 @@ export default function MultiplayerRoomPage() {
           .eq('id', opponentId)
           .single();
         if (profileData) setOpponentName(profileData.pseudo);
+      }
+      
+      // Charger l'état du jeu
+      if (data.game_state) {
+        const state = data.game_state;
+        if (p1) {
+          setMyHand(state.player1_hand || []);
+          setOpponentHandCount(state.player2_hand?.length || 0);
+        } else {
+          setMyHand(state.player2_hand || []);
+          setOpponentHandCount(state.player1_hand?.length || 0);
+        }
+        setTopCard(state.top_card || null);
+        setDeckCount(state.deck?.length || 0);
+        setMessage(state.message || '');
+        setIsMyTurn(state.current_turn === (p1 ? 1 : 2) && state.status === 'playing');
+        setGameStarted(state.status === 'playing');
+        setIsReady(p1 ? state.player1_ready : state.player2_ready);
+        setOpponentReady(p1 ? state.player2_ready : state.player1_ready);
       }
       
       setLoading(false);
@@ -80,14 +105,21 @@ export default function MultiplayerRoomPage() {
           if (newRoom.game_state) {
             const state = newRoom.game_state;
             if (isPlayer1) {
+              setMyHand(state.player1_hand || []);
+              setOpponentHandCount(state.player2_hand?.length || 0);
               setIsReady(state.player1_ready || false);
               setOpponentReady(state.player2_ready || false);
-              if (state.status === 'playing') setGameStarted(true);
             } else {
+              setMyHand(state.player2_hand || []);
+              setOpponentHandCount(state.player1_hand?.length || 0);
               setIsReady(state.player2_ready || false);
               setOpponentReady(state.player1_ready || false);
-              if (state.status === 'playing') setGameStarted(true);
             }
+            setTopCard(state.top_card || null);
+            setDeckCount(state.deck?.length || 0);
+            setMessage(state.message || '');
+            setIsMyTurn(state.current_turn === (isPlayer1 ? 1 : 2) && state.status === 'playing');
+            if (state.status === 'playing') setGameStarted(true);
           }
         }
       )
@@ -105,12 +137,17 @@ export default function MultiplayerRoomPage() {
     const newReadyState = !isReady;
     setIsReady(newReadyState);
 
-    // Récupérer l'état actuel ou créer un nouveau
     const currentState = room.game_state || {
       status: 'waiting',
       player1_ready: false,
       player2_ready: false,
       message: 'En attente des joueurs...',
+      player1_hand: [],
+      player2_hand: [],
+      deck: [],
+      discard_pile: [],
+      top_card: null,
+      current_turn: 1,
     };
 
     const updateData = {
@@ -122,8 +159,20 @@ export default function MultiplayerRoomPage() {
     const p2Ready = !isPlayer1 ? newReadyState : currentState.player2_ready;
 
     if (p1Ready && p2Ready) {
+      // Distribuer les cartes au démarrage
+      const deck = createShuffledDeck();
+      const p1Hand = deck.splice(0, 7);
+      const p2Hand = deck.splice(0, 7);
+      const topCard = deck.shift();
+      
       updateData.status = 'playing';
-      updateData.message = 'La partie commence !';
+      updateData.message = 'La partie commence ! Tour du Joueur 1';
+      updateData.player1_hand = p1Hand;
+      updateData.player2_hand = p2Hand;
+      updateData.deck = deck;
+      updateData.discard_pile = topCard ? [topCard] : [];
+      updateData.top_card = topCard;
+      updateData.current_turn = 1;
     } else {
       updateData.status = 'waiting';
       updateData.message = 'En attente de l\'adversaire...';
@@ -134,6 +183,28 @@ export default function MultiplayerRoomPage() {
       .update({ game_state: updateData })
       .eq('id', roomId);
   };
+
+  // Créer un deck mélangé
+  function createShuffledDeck(): GameCard[] {
+    const suits = ['Hearts', 'Diamonds', 'Clubs', 'Spades'] as const;
+    const ranks = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'Jack', 'Queen', 'King', 'Ace'];
+    const deck: GameCard[] = [];
+    let id = 0;
+    for (const suit of suits) {
+      for (const rank of ranks) {
+        deck.push({ id: `card-${id++}`, suit, rank, isJoker: false });
+      }
+    }
+    deck.push({ id: `card-${id++}`, suit: 'Hearts', rank: 'Joker', isJoker: true });
+    deck.push({ id: `card-${id++}`, suit: 'Hearts', rank: 'Joker', isJoker: true });
+    
+    // Mélanger
+    for (let i = deck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+    return deck;
+  }
 
   if (loading) {
     return (
@@ -156,84 +227,118 @@ export default function MultiplayerRoomPage() {
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(255,200,0,0.3)_0%,_transparent_60%)]"></div>
       <div className="absolute inset-2 border-4 border-yellow-400/60 rounded-3xl pointer-events-none"></div>
 
-      <div className="relative z-10 max-w-2xl mx-auto pt-8">
-        <div className="flex items-center justify-between mb-8">
+      <div className="relative z-10 max-w-6xl mx-auto">
+        <div className="flex items-center justify-between mb-4 pt-4">
           <Link href="/menu" className="flex items-center gap-2 text-white font-bold hover:text-yellow-400">
             <ArrowLeft className="w-5 h-5" /> Quitter
           </Link>
-          <h1 className="text-2xl md:text-3xl font-black text-yellow-400">
-            SALLE DE JEU
-          </h1>
+          <h1 className="text-xl md:text-2xl font-black text-yellow-400">⚔️ MULTIJOUER</h1>
           <div className="w-20"></div>
         </div>
 
-        <div className="bg-white/95 rounded-2xl p-6 shadow-2xl border-2 border-yellow-400 text-center space-y-8">
-          
-          {!gameStarted ? (
-            <>
-              <div className="bg-gray-100 rounded-xl p-4">
-                <p className="text-lg font-bold text-gray-800">
-                  ⏳ En attente des joueurs...
-                </p>
-              </div>
-
-              <div className="flex flex-col md:flex-row items-center justify-center gap-8">
-                <div className={`flex flex-col items-center p-6 rounded-xl border-2 ${isReady ? 'bg-green-50 border-green-400' : 'bg-gray-50 border-gray-300'}`}>
-                  <div className="w-20 h-20 rounded-full bg-blue-500 flex items-center justify-center text-white text-2xl font-bold mb-3 border-4 border-white">
-                    {profile?.pseudo?.charAt(0).toUpperCase() || 'J1'}
-                  </div>
-                  <p className="font-bold text-gray-800">{profile?.pseudo || 'Toi'}</p>
-                  <p className="text-sm text-gray-500 mb-3">{isReady ? '✅ Prêt' : '❌ Pas prêt'}</p>
-                  <Button 
-                    onClick={handleReady}
-                    className={isReady ? 'bg-gray-400' : 'bg-green-500 hover:bg-green-600'}
-                  >
-                    {isReady ? 'Annuler' : 'Je suis prêt !'}
-                  </Button>
-                </div>
-
-                <div className="text-4xl font-black text-yellow-500">VS</div>
-
-                <div className={`flex flex-col items-center p-6 rounded-xl border-2 ${opponentReady ? 'bg-green-50 border-green-400' : 'bg-gray-50 border-gray-300'}`}>
-                  <div className="w-20 h-20 rounded-full bg-red-500 flex items-center justify-center text-white text-2xl font-bold mb-3 border-4 border-white">
-                    <Users className="w-10 h-10" />
-                  </div>
-                  <p className="font-bold text-gray-800">{opponentName}</p>
-                  <p className="text-sm text-gray-500 mb-3">{opponentReady ? '✅ Prêt' : ' En attente...'}</p>
-                  <div className="w-32 h-10 bg-gray-200 rounded flex items-center justify-center text-gray-400 text-sm font-bold">
-                    {opponentReady ? 'Prêt' : 'Attente'}
-                  </div>
-                </div>
-              </div>
-            </>
-          ) : (
-            /* Écran de jeu simplifié */
-            <div className="space-y-6">
-              <div className="bg-green-100 border-2 border-green-400 rounded-xl p-6">
-                <Trophy className="w-16 h-16 mx-auto text-green-600 mb-4" />
-                <h2 className="text-2xl font-black text-green-800 mb-2">
-                  🎮 La partie commence !
-                </h2>
-                <p className="text-gray-600 mb-4">
-                  Toi ({profile?.pseudo}) VS {opponentName}
-                </p>
-                <p className="text-sm text-gray-500">
-                  Le vrai plateau de jeu sera ajouté prochainement.
-                  <br />
-                  Pour l'instant, le multijoueur temps réel fonctionne ! ✅
-                </p>
-              </div>
-
-              <Button
-                onClick={() => router.push('/menu')}
-                variant="outline"
-                className="w-full border-2 border-red-400 text-red-600 hover:bg-red-50"
-              >
-                Retour au menu
-              </Button>
-            </div>
-          )}
+        {/* Message */}
+        <div className="bg-black/60 backdrop-blur-sm rounded-xl p-3 mb-4 text-center border-2 border-yellow-400/50">
+          <p className="text-white font-bold text-sm md:text-base">{message}</p>
         </div>
+
+        {!gameStarted ? (
+          /* Écran d'attente */
+          <div className="bg-white/95 rounded-2xl p-6 shadow-2xl border-2 border-yellow-400 text-center">
+            <div className="flex flex-col md:flex-row items-center justify-center gap-8">
+              <div className={`flex flex-col items-center p-6 rounded-xl border-2 ${isReady ? 'bg-green-50 border-green-400' : 'bg-gray-50 border-gray-300'}`}>
+                <div className="w-20 h-20 rounded-full bg-blue-500 flex items-center justify-center text-white text-2xl font-bold mb-3 border-4 border-white">
+                  {profile?.pseudo?.charAt(0).toUpperCase() || '?'}
+                </div>
+                <p className="font-bold text-gray-800">{profile?.pseudo || 'Toi'}</p>
+                <p className="text-sm text-gray-500 mb-3">{isReady ? '✅ Prêt' : '❌ Pas prêt'}</p>
+                <Button onClick={handleReady} className={isReady ? 'bg-gray-400' : 'bg-green-500 hover:bg-green-600'}>
+                  {isReady ? 'Annuler' : 'Je suis prêt !'}
+                </Button>
+              </div>
+
+              <div className="text-4xl font-black text-yellow-500">VS</div>
+
+              <div className={`flex flex-col items-center p-6 rounded-xl border-2 ${opponentReady ? 'bg-green-50 border-green-400' : 'bg-gray-50 border-gray-300'}`}>
+                <div className="w-20 h-20 rounded-full bg-red-500 flex items-center justify-center text-white text-2xl font-bold mb-3 border-4 border-white">
+                  <Users className="w-10 h-10" />
+                </div>
+                <p className="font-bold text-gray-800">{opponentName}</p>
+                <p className="text-sm text-gray-500 mb-3">{opponentReady ? '✅ Prêt' : '⏳ En attente...'}</p>
+                <div className="w-32 h-10 bg-gray-200 rounded flex items-center justify-center text-gray-400 text-sm font-bold">
+                  {opponentReady ? 'Prêt' : 'Attente'}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Plateau de jeu */
+          <div className="space-y-4">
+            {/* Main adverse (face cachée) */}
+            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border-2 border-yellow-400/50">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center text-white font-bold border-2 border-white">
+                    {opponentName.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="text-white font-bold text-sm">{opponentName}</p>
+                    <p className="text-yellow-400 text-xs">{opponentHandCount} cartes</p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex justify-center gap-1 flex-wrap">
+                {Array.from({ length: opponentHandCount }).map((_, i) => (
+                  <PlayingCard key={i} isFaceDown className="w-12 h-16 md:w-16 md:h-24" />
+                ))}
+              </div>
+            </div>
+
+            {/* Zone centrale */}
+            <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-6 border-2 border-yellow-400/50 min-h-[180px] flex items-center justify-center gap-8">
+              <div className="flex flex-col items-center">
+                <p className="text-white text-xs font-bold mb-2">DÉFAUSSE</p>
+                {topCard ? (
+                  <PlayingCard card={topCard} className="w-20 h-28 md:w-24 md:h-32" />
+                ) : (
+                  <div className="w-20 h-28 md:w-24 md:h-32 bg-gray-700 rounded-xl border-2 border-gray-500"></div>
+                )}
+              </div>
+              <div className="flex flex-col items-center">
+                <p className="text-white text-xs font-bold mb-2">PIOCHE ({deckCount})</p>
+                <PlayingCard isFaceDown className="w-20 h-28 md:w-24 md:h-32" />
+              </div>
+            </div>
+
+            {/* Ma main */}
+            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border-2 border-yellow-400/50">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold border-2 border-white">
+                    {profile?.pseudo?.charAt(0).toUpperCase() || '?'}
+                  </div>
+                  <div>
+                    <p className="text-white font-bold text-sm">{profile?.pseudo || 'Toi'}</p>
+                    <p className="text-yellow-400 text-xs">{myHand.length} cartes</p>
+                  </div>
+                </div>
+                {isMyTurn && (
+                  <span className="bg-green-400 text-black text-xs font-bold px-3 py-1 rounded-full animate-pulse">
+                    Ton tour !
+                  </span>
+                )}
+              </div>
+              <div className="flex justify-center gap-1 flex-wrap">
+                {myHand.map((card) => (
+                  <PlayingCard
+                    key={card.id}
+                    card={card}
+                    className="w-14 h-20 md:w-20 md:h-28"
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
