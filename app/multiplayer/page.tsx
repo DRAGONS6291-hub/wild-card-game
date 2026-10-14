@@ -26,7 +26,7 @@ export default function MultiplayerPage() {
     return () => clearInterval(interval);
   }, [isSearching, matchFound]);
 
-  // Écouter Realtime pour être redirigé quand le match est trouvé
+  // Écouter Realtime
   useEffect(() => {
     if (!userId || !isSearching || matchFound) return;
 
@@ -61,6 +61,41 @@ export default function MultiplayerPage() {
     };
   }, [userId, isSearching, matchFound, router]);
 
+  // Boucle de recherche : appelle find_match toutes les 2 secondes
+  useEffect(() => {
+    if (!isSearching || !userId || !profile || matchFound) return;
+
+    const searchInterval = setInterval(async () => {
+      try {
+        const { data, error } = await supabase.rpc('find_match', {
+          p_user_id: userId,
+          p_level: profile.level || 1,
+        });
+
+        if (error) {
+          console.error('Erreur RPC:', error);
+          return;
+        }
+
+        if (data?.success) {
+          setMatchFound(true);
+          setIsSearching(false);
+          setStatusMessage('Adversaire trouvé ! Redirection...');
+          
+          setTimeout(() => {
+            router.push(`/multiplayer/${data.room_id}`);
+          }, 1500);
+        } else {
+          setStatusMessage('Recherche en cours...');
+        }
+      } catch (err) {
+        console.error('Erreur recherche:', err);
+      }
+    }, 2000); // Toutes les 2 secondes
+
+    return () => clearInterval(searchInterval);
+  }, [isSearching, userId, profile, matchFound, router]);
+
   // Lancer la recherche
   const handleSearch = async () => {
     if (!userId || !profile) return;
@@ -71,14 +106,15 @@ export default function MultiplayerPage() {
     setStatusMessage('Recherche d\'un adversaire...');
 
     // S'ajouter à la file d'attente
-    // Le trigger SQL va automatiquement chercher un adversaire
     const { error } = await supabase
       .from('matchmaking_queue')
-      .insert({
+      .upsert({
         user_id: userId,
         level: profile.level || 1,
         status: 'searching',
         created_at: new Date().toISOString(),
+      }, {
+        onConflict: 'user_id',
       });
 
     if (error) {
