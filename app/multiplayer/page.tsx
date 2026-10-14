@@ -26,7 +26,7 @@ export default function MultiplayerPage() {
     return () => clearInterval(interval);
   }, [isSearching, matchFound]);
 
-  // 1. ÉCOUTER REALTIME pour les 2 joueurs (c'est la clé !)
+  // Écouter Realtime pour être redirigé quand le match est trouvé
   useEffect(() => {
     if (!userId || !isSearching || matchFound) return;
 
@@ -41,10 +41,9 @@ export default function MultiplayerPage() {
           filter: `user_id=eq.${userId}`,
         },
         (payload) => {
-          const newStatus = payload.new.status;
-          console.log('🔔 Realtime reçu:', newStatus, payload.new);
+          console.log('🔔 Realtime reçu:', payload.new);
           
-          if (newStatus === 'matched' && payload.new.room_id) {
+          if (payload.new.status === 'matched' && payload.new.room_id) {
             setMatchFound(true);
             setIsSearching(false);
             setStatusMessage('Adversaire trouvé ! Redirection...');
@@ -62,42 +61,6 @@ export default function MultiplayerPage() {
     };
   }, [userId, isSearching, matchFound, router]);
 
-  // 2. Boucle de recherche (appelle find_match toutes les 3s)
-  useEffect(() => {
-    if (!isSearching || !userId || !profile || matchFound) return;
-
-    const searchInterval = setInterval(async () => {
-      try {
-        const { data, error } = await supabase.rpc('find_match', {
-          p_user_id: userId,
-          p_level: profile.level || 1,
-        });
-
-        if (error) {
-          console.error('Erreur RPC:', error);
-          return;
-        }
-
-        if (data?.success) {
-          // Match trouvé directement (on est le "gagnant" du matching)
-          setMatchFound(true);
-          setIsSearching(false);
-          setStatusMessage('Adversaire trouvé ! Redirection...');
-          
-          setTimeout(() => {
-            router.push(`/multiplayer/${data.room_id}`);
-          }, 1500);
-        } else {
-          setStatusMessage('Recherche en cours...');
-        }
-      } catch (err) {
-        console.error('Erreur recherche:', err);
-      }
-    }, 3000);
-
-    return () => clearInterval(searchInterval);
-  }, [isSearching, userId, profile, matchFound, router]);
-
   // Lancer la recherche
   const handleSearch = async () => {
     if (!userId || !profile) return;
@@ -108,28 +71,32 @@ export default function MultiplayerPage() {
     setStatusMessage('Recherche d\'un adversaire...');
 
     // S'ajouter à la file d'attente
+    // Le trigger SQL va automatiquement chercher un adversaire
     const { error } = await supabase
       .from('matchmaking_queue')
-      .upsert({
+      .insert({
         user_id: userId,
         level: profile.level || 1,
         status: 'searching',
         created_at: new Date().toISOString(),
-      }, {
-        onConflict: 'user_id',
       });
 
     if (error) {
       console.error('Erreur ajout file:', error);
+      setStatusMessage('Erreur: ' + error.message);
       setIsSearching(false);
-      return;
     }
   };
 
   // Annuler
   const handleCancel = async () => {
     if (!userId) return;
-    await supabase.rpc('cancel_match', { p_user_id: userId });
+    
+    await supabase
+      .from('matchmaking_queue')
+      .update({ status: 'cancelled' })
+      .eq('user_id', userId);
+    
     setIsSearching(false);
     setMatchFound(false);
     setSearchTime(0);
