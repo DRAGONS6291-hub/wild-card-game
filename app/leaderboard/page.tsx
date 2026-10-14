@@ -1,9 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Trophy, Medal, ArrowLeft, User } from 'lucide-react';
+import { Trophy, Medal, ArrowLeft, User, Sparkles, Star } from 'lucide-react';
 
 interface LeaderboardEntry {
   id: string;
@@ -13,6 +12,8 @@ interface LeaderboardEntry {
   wins: number;
   losses: number;
   win_rate: number;
+  xp: number;
+  level: number;
 }
 
 export default function LeaderboardPage() {
@@ -28,7 +29,7 @@ export default function LeaderboardPage() {
         setCurrentUserId(session.user.id);
       }
 
-      // Charger le classement
+      // Charger le classement (la vue contient déjà tout)
       const { data, error } = await supabase
         .from('leaderboard')
         .select('*')
@@ -39,7 +40,7 @@ export default function LeaderboardPage() {
       if (error) {
         console.error('Erreur leaderboard:', error);
       } else if (data) {
-        setLeaderboard(data);
+        setLeaderboard(data as LeaderboardEntry[]);
       }
       setLoading(false);
     };
@@ -67,7 +68,7 @@ export default function LeaderboardPage() {
             <ArrowLeft className="w-5 h-5" /> Retour au menu
           </Link>
           <h1 className="text-4xl font-black text-yellow-400" style={{ WebkitTextStroke: '2px #9A3412', textShadow: '3px 3px 0px #9A3412' }}>
-             CLASSEMENT
+            🏆 CLASSEMENT
           </h1>
           <div className="w-32"></div>
         </div>
@@ -130,9 +131,9 @@ export default function LeaderboardPage() {
                     </div>
 
                     {/* Infos joueur */}
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-lg font-bold text-gray-800">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-lg font-bold text-gray-800 truncate">
                           {player.pseudo}
                           {isCurrentUser && (
                             <span className="text-xs bg-blue-500 text-white px-2 py-1 rounded-full ml-2">
@@ -141,26 +142,36 @@ export default function LeaderboardPage() {
                           )}
                         </h3>
                       </div>
-                      <div className="flex gap-4 mt-1 text-sm text-gray-600">
-                        <span className="font-semibold">{player.total_games} parties</span>
+                      
+                      {/* Niveau et XP */}
+                      <div className="flex items-center gap-3 mt-1 flex-wrap">
+                        <div className="flex items-center gap-1 bg-gradient-to-r from-purple-100 to-pink-100 px-2 py-0.5 rounded-full border border-purple-300">
+                          <Star className="w-3.5 h-3.5 text-purple-600" fill="currentColor" />
+                          <span className="text-xs font-bold text-purple-700">Niveau {player.level}</span>
+                        </div>
+                        <div className="flex items-center gap-1 bg-gradient-to-r from-yellow-100 to-orange-100 px-2 py-0.5 rounded-full border border-yellow-300">
+                          <Sparkles className="w-3.5 h-3.5 text-yellow-600" />
+                          <span className="text-xs font-bold text-yellow-700">{player.xp} XP</span>
+                        </div>
+                        <span className="text-xs text-gray-500 font-semibold">{player.total_games} parties</span>
                       </div>
                     </div>
 
                     {/* Stats */}
-                    <div className="flex gap-6 text-center">
+                    <div className="flex gap-4 md:gap-6 text-center flex-shrink-0">
                       <div>
-                        <div className="text-2xl font-bold text-green-600">{player.wins}</div>
-                        <div className="text-xs text-gray-500 font-semibold">Victoires</div>
+                        <div className="text-xl md:text-2xl font-bold text-green-600">{player.wins}</div>
+                        <div className="text-[10px] md:text-xs text-gray-500 font-semibold">Victoires</div>
                       </div>
                       <div>
-                        <div className="text-2xl font-bold text-red-600">{player.losses}</div>
-                        <div className="text-xs text-gray-500 font-semibold">Défaites</div>
+                        <div className="text-xl md:text-2xl font-bold text-red-600">{player.losses}</div>
+                        <div className="text-[10px] md:text-xs text-gray-500 font-semibold">Défaites</div>
                       </div>
                       <div>
-                        <div className="text-2xl font-bold text-blue-600">
+                        <div className="text-xl md:text-2xl font-bold text-blue-600">
                           {player.win_rate || 0}%
                         </div>
-                        <div className="text-xs text-gray-500 font-semibold">Taux de victoire</div>
+                        <div className="text-[10px] md:text-xs text-gray-500 font-semibold">Win rate</div>
                       </div>
                     </div>
                   </div>
