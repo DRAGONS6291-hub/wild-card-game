@@ -1,13 +1,12 @@
 'use client';
 import { useCallback, useEffect, useRef } from 'react';
 
-// Chemins des fichiers audio (à mettre dans /public/sounds/)
+// Chemins des fichiers audio
 const SOUNDS = {
   card: '/sounds/card.mp3',
   victory: '/sounds/victory.mp3',
   defeat: '/sounds/defeat.mp3',
   menuClick: '/sounds/menu-click.mp3',
-  achievement: '/sounds/achievement.mp3', // 🎯 NOUVEAU : son de succès
 };
 
 export function useSound() {
@@ -26,7 +25,6 @@ export function useSound() {
   const playSound = useCallback((soundKey: string) => {
     const audio = audioRefs.current[soundKey];
     if (audio) {
-      // Remettre à zéro pour pouvoir rejouer rapidement
       audio.currentTime = 0;
       audio.play().catch(() => {
         // Ignorer les erreurs si l'utilisateur n'a pas encore interagi
@@ -38,13 +36,11 @@ export function useSound() {
   const playVictory = useCallback(() => playSound('victory'), [playSound]);
   const playDefeat = useCallback(() => playSound('defeat'), [playSound]);
   const playMenuClick = useCallback(() => playSound('menuClick'), [playSound]);
-  const playAchievement = useCallback(() => playSound('achievement'), [playSound]); // 🎯 NOUVEAU
 
   return { 
     playCard, 
     playVictory, 
     playDefeat, 
-    playMenuClick, 
-    playAchievement // 🎯 NOUVEAU
+    playMenuClick,
   };
 }

@@ -15,7 +15,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { useSound } from '@/hooks/useSound';
 
-// 🌟 NOUVEAUX IMPORTS POUR LE SYSTÈME XP / SUCCÈS
+// 🌟 IMPORTS POUR LE SYSTÈME XP / SUCCÈS
 import { calculateXpReward, getLevelInfo } from '@/lib/level-system';
 import { checkAndUnlockAchievements } from '@/lib/achievements';
 
@@ -27,7 +27,8 @@ const AVATARS = {
 
 export function GameBoard({ initialGameState }: { initialGameState: GameState }) {
   const { profile, userId } = useAuth();
-  const { playCardPlay, playCardDraw, playVictory, playDefeat, playAchievement } = useSound();
+  // ✅ CORRECTION : utiliser les bons noms de fonctions son
+  const { playCard, playVictory, playDefeat } = useSound();
   
   const playerName = profile?.pseudo || 'TOI';
   const playerAvatar = profile?.avatar_url || 'https://i.pravatar.cc/150?img=12';
@@ -119,7 +120,6 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
           
           // 5. Notification si succès débloqué
           if (newlyUnlocked.length > 0) {
-            if (typeof playAchievement === 'function') playAchievement();
             toast({ 
               title: '🏆 Succès débloqué !', 
               description: `Tu as débloqué ${newlyUnlocked.length} nouveau(x) succès !`,
@@ -130,7 +130,7 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
       };
       saveScoreAndXp();
     }
-  }, [gameState.winner, profile, userId, scoreSaved, gameState.playerHand.length, gameState.difficulty, toast, playVictory, playDefeat, playAchievement]);
+  }, [gameState.winner, profile, userId, scoreSaved, gameState.playerHand.length, gameState.difficulty, toast, playVictory, playDefeat]);
 
   // Pioche automatique
   useEffect(() => {
@@ -142,7 +142,7 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
     }
 
     if (jokerPendingDraw && pendingDraw > 0) {
-      setAutoDrawMessage(`🎴 Pioche automatique de ${pendingDraw} cartes (Joker)...`);
+      setAutoDrawMessage(` Pioche automatique de ${pendingDraw} cartes (Joker)...`);
       const timeout = setTimeout(() => {
         const currentState = gameStateRef.current;
         if (currentState.jokerPendingDraw && currentState.pendingDraw > 0 && currentState.currentPlayer === 'player') {
@@ -192,13 +192,15 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
     });
   };
 
+  // ✅ CORRECTION : playCard au lieu de playCardPlay
   const handlePlayCard = (card: GameCard) => {
-    playCardPlay();
+    playCard();
     onAction({ type: 'PLAY_CARD', card });
   };
   
+  // ✅ CORRECTION : playCard au lieu de playCardDraw
   const handleDrawCard = () => {
-    playCardDraw();
+    playCard();
     onAction({ type: 'DRAW_CARD' });
   };
   
@@ -235,7 +237,7 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
           difficulty={gameState.difficulty || 'medium'}
           userId={userId ?? undefined}
           currentStats={{
-            wins: 0, // Sera mis à jour en arrière-plan
+            wins: 0,
             totalGames: 0,
             xp: profile?.xp || 0,
             level: profile?.level || 1,
@@ -395,7 +397,7 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
             disabled={drawButtonDisabled}
             className="bg-gradient-to-b from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-black font-black border-b-4 border-yellow-800 shadow-lg text-lg px-8 py-6"
           >
-            {pendingDraw > 0 ? `Piocher ${pendingDraw}` : '🎴 Piocher'}
+            {pendingDraw > 0 ? `Piocher ${pendingDraw}` : ' Piocher'}
           </Button>
           {canPlayerEndTurn && (
             <Button 
