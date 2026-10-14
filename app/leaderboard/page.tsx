@@ -23,13 +23,11 @@ export default function LeaderboardPage() {
 
   useEffect(() => {
     const loadLeaderboard = async () => {
-      // Récupérer l'utilisateur connecté
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         setCurrentUserId(session.user.id);
       }
 
-      // Charger le classement (la vue contient déjà tout)
       const { data, error } = await supabase
         .from('leaderboard')
         .select('*')
@@ -63,23 +61,23 @@ export default function LeaderboardPage() {
 
       <div className="relative z-10 max-w-4xl mx-auto">
         {/* En-tête */}
-        <div className="flex items-center justify-between mb-8 pt-4">
+        <div className="flex items-center justify-between mb-6 pt-4">
           <Link href="/menu" className="flex items-center gap-2 text-white font-bold hover:text-yellow-400 transition-colors">
-            <ArrowLeft className="w-5 h-5" /> Retour au menu
+            <ArrowLeft className="w-5 h-5" /> Retour
           </Link>
-          <h1 className="text-4xl font-black text-yellow-400" style={{ WebkitTextStroke: '2px #9A3412', textShadow: '3px 3px 0px #9A3412' }}>
+          <h1 className="text-2xl md:text-4xl font-black text-yellow-400" style={{ WebkitTextStroke: '2px #9A3412', textShadow: '3px 3px 0px #9A3412' }}>
             🏆 CLASSEMENT
           </h1>
-          <div className="w-32"></div>
+          <div className="w-20 md:w-32"></div>
         </div>
 
         {/* Liste des joueurs */}
-        <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-6 shadow-2xl border-2 border-yellow-400">
+        <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-4 md:p-6 shadow-2xl border-2 border-yellow-400">
           {leaderboard.length === 0 ? (
             <div className="text-center py-12">
               <Trophy className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
-              <p className="text-gray-600 text-lg font-semibold">Aucune partie jouée pour le moment</p>
-              <p className="text-gray-500 text-sm mt-2">Sois le premier à jouer !</p>
+              <p className="text-gray-600 text-lg font-semibold">Aucune partie jouée</p>
+              <p className="text-gray-500 text-sm mt-2">Sois le premier !</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -90,7 +88,7 @@ export default function LeaderboardPage() {
                 return (
                   <div
                     key={player.id}
-                    className={`flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${
+                    className={`flex flex-col md:flex-row items-center gap-3 md:gap-4 p-4 rounded-xl border-2 transition-all ${
                       rank === 1
                         ? 'bg-gradient-to-r from-yellow-100 to-yellow-200 border-yellow-500 shadow-lg'
                         : rank === 2
@@ -102,55 +100,51 @@ export default function LeaderboardPage() {
                         : 'bg-gray-50 border-gray-200'
                     }`}
                   >
-                    {/* Rang */}
-                    <div className="flex-shrink-0 w-12 text-center">
-                      {rank === 1 ? (
-                        <Trophy className="w-8 h-8 text-yellow-600 mx-auto" />
-                      ) : rank === 2 ? (
-                        <Medal className="w-8 h-8 text-gray-600 mx-auto" />
-                      ) : rank === 3 ? (
-                        <Medal className="w-8 h-8 text-orange-600 mx-auto" />
-                      ) : (
-                        <span className="text-2xl font-bold text-gray-500">#{rank}</span>
-                      )}
-                    </div>
+                    {/* Rang + Avatar */}
+                    <div className="flex items-center gap-3 w-full md:w-auto justify-center md:justify-start">
+                      <div className="flex-shrink-0 w-12 text-center">
+                        {rank === 1 ? (
+                          <Trophy className="w-8 h-8 text-yellow-600 mx-auto" />
+                        ) : rank === 2 ? (
+                          <Medal className="w-8 h-8 text-gray-600 mx-auto" />
+                        ) : rank === 3 ? (
+                          <Medal className="w-8 h-8 text-orange-600 mx-auto" />
+                        ) : (
+                          <span className="text-2xl font-bold text-gray-500">#{rank}</span>
+                        )}
+                      </div>
 
-                    {/* Avatar */}
-                    <div className="flex-shrink-0">
                       {player.avatar_url ? (
                         <img
                           src={player.avatar_url}
                           alt={player.pseudo}
-                          className="w-14 h-14 rounded-full border-2 border-white shadow-md object-cover"
+                          className="w-12 h-12 rounded-full border-2 border-white shadow-md object-cover"
                         />
                       ) : (
-                        <div className="w-14 h-14 rounded-full bg-gray-300 flex items-center justify-center">
-                          <User className="w-8 h-8 text-gray-600" />
+                        <div className="w-12 h-12 rounded-full bg-gray-300 flex items-center justify-center">
+                          <User className="w-6 h-6 text-gray-600" />
                         </div>
                       )}
                     </div>
 
                     {/* Infos joueur */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-lg font-bold text-gray-800 truncate">
-                          {player.pseudo}
-                          {isCurrentUser && (
-                            <span className="text-xs bg-blue-500 text-white px-2 py-1 rounded-full ml-2">
-                              TOI
-                            </span>
-                          )}
-                        </h3>
-                      </div>
+                    <div className="flex-1 min-w-0 text-center md:text-left">
+                      <h3 className="text-base md:text-lg font-bold text-gray-800 truncate">
+                        {player.pseudo}
+                        {isCurrentUser && (
+                          <span className="text-xs bg-blue-500 text-white px-2 py-1 rounded-full ml-2">
+                            TOI
+                          </span>
+                        )}
+                      </h3>
                       
-                      {/* Niveau et XP */}
-                      <div className="flex items-center gap-3 mt-1 flex-wrap">
-                        <div className="flex items-center gap-1 bg-gradient-to-r from-purple-100 to-pink-100 px-2 py-0.5 rounded-full border border-purple-300">
-                          <Star className="w-3.5 h-3.5 text-purple-600" fill="currentColor" />
-                          <span className="text-xs font-bold text-purple-700">Niveau {player.level}</span>
+                      <div className="flex items-center justify-center md:justify-start gap-2 mt-1 flex-wrap">
+                        <div className="flex items-center gap-1 bg-purple-100 px-2 py-0.5 rounded-full border border-purple-300">
+                          <Star className="w-3 h-3 text-purple-600" fill="currentColor" />
+                          <span className="text-xs font-bold text-purple-700">Niv. {player.level}</span>
                         </div>
-                        <div className="flex items-center gap-1 bg-gradient-to-r from-yellow-100 to-orange-100 px-2 py-0.5 rounded-full border border-yellow-300">
-                          <Sparkles className="w-3.5 h-3.5 text-yellow-600" />
+                        <div className="flex items-center gap-1 bg-yellow-100 px-2 py-0.5 rounded-full border border-yellow-300">
+                          <Sparkles className="w-3 h-3 text-yellow-600" />
                           <span className="text-xs font-bold text-yellow-700">{player.xp} XP</span>
                         </div>
                         <span className="text-xs text-gray-500 font-semibold">{player.total_games} parties</span>
@@ -158,20 +152,18 @@ export default function LeaderboardPage() {
                     </div>
 
                     {/* Stats */}
-                    <div className="flex gap-4 md:gap-6 text-center flex-shrink-0">
+                    <div className="grid grid-cols-3 gap-2 md:gap-4 w-full md:w-auto text-center">
                       <div>
-                        <div className="text-xl md:text-2xl font-bold text-green-600">{player.wins}</div>
-                        <div className="text-[10px] md:text-xs text-gray-500 font-semibold">Victoires</div>
+                        <div className="text-lg md:text-2xl font-bold text-green-600">{player.wins}</div>
+                        <div className="text-[10px] text-gray-500 font-semibold">Victoires</div>
                       </div>
                       <div>
-                        <div className="text-xl md:text-2xl font-bold text-red-600">{player.losses}</div>
-                        <div className="text-[10px] md:text-xs text-gray-500 font-semibold">Défaites</div>
+                        <div className="text-lg md:text-2xl font-bold text-red-600">{player.losses}</div>
+                        <div className="text-[10px] text-gray-500 font-semibold">Défaites</div>
                       </div>
                       <div>
-                        <div className="text-xl md:text-2xl font-bold text-blue-600">
-                          {player.win_rate || 0}%
-                        </div>
-                        <div className="text-[10px] md:text-xs text-gray-500 font-semibold">Win rate</div>
+                        <div className="text-lg md:text-2xl font-bold text-blue-600">{player.win_rate || 0}%</div>
+                        <div className="text-[10px] text-gray-500 font-semibold">Win rate</div>
                       </div>
                     </div>
                   </div>
