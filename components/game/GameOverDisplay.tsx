@@ -1,7 +1,8 @@
 'use client';
 import { Button } from "@/components/ui/button";
-import { Trophy, Loader2, Sparkles, Star } from 'lucide-react';
+import { Trophy, Loader2, Sparkles, Star, Home } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useSound } from '@/hooks/useSound';
 import { BannerAd } from '@/components/ads/BannerAd';
 import { calculateXpReward, getLevelInfo } from '@/lib/level-system';
@@ -32,6 +33,7 @@ export function GameOverDisplay({
   userId,
   currentStats
 }: GameOverDisplayProps) {
+  const router = useRouter();
   const { playVictory, playDefeat, playAchievement } = useSound();
   const [isAdLoading, setIsAdLoading] = useState(false);
   const [xpGained, setXpGained] = useState(0);
@@ -54,7 +56,7 @@ export function GameOverDisplay({
     if (userId && currentStats) {
       const won = winnerName === 'player';
       const xpReward = calculateXpReward(won, difficulty);
-      const newXp = currentStats.xp + xpReward;
+      const newXp = Math.max(0, currentStats.xp + xpReward); // Empêcher les XP négatifs
       const levelInfo = getLevelInfo(newXp);
       
       setXpGained(xpReward);
@@ -104,6 +106,10 @@ export function GameOverDisplay({
     }, 5000);
   };
 
+  const handleQuit = () => {
+    router.push('/menu');
+  };
+
   let winnerName = '';
   if (typeof winner === 'string') winnerName = winner;
   else if (winner && typeof winner === 'object' && 'name' in winner) winnerName = winner.name;
@@ -129,12 +135,26 @@ export function GameOverDisplay({
         <h2 className="text-3xl font-black mb-4 text-gray-800">{message}</h2>
         
         {/* Récompenses XP et succès */}
-        {showRewards && (xpGained > 0 || newLevel || unlockedAchievements.length > 0) && (
+        {showRewards && (xpGained !== 0 || newLevel || unlockedAchievements.length > 0) && (
           <div className="my-4 p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border-2 border-purple-200 space-y-3">
-            {xpGained > 0 && (
-              <div className="flex items-center justify-center gap-2 text-purple-700 font-bold">
-                <Sparkles className="w-5 h-5" />
-                <span>+{xpGained} XP</span>
+            {/* Affichage XP gagné/perdu */}
+            {xpGained !== 0 && (
+              <div className={`flex items-center justify-center gap-2 font-bold ${
+                xpGained > 0 
+                  ? 'text-purple-700' 
+                  : 'text-red-600'
+              }`}>
+                {xpGained > 0 ? (
+                  <>
+                    <Sparkles className="w-5 h-5" />
+                    <span>+{xpGained} XP</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-2xl">😢</span>
+                    <span>{xpGained} XP</span>
+                  </>
+                )}
               </div>
             )}
             
@@ -156,14 +176,14 @@ export function GameOverDisplay({
                       {id === 'first_win' && '🏆 Première Victoire'}
                       {id === 'win_10' && '⚔️ Guerrier'}
                       {id === 'win_50' && '👑 Champion'}
-                      {id === 'win_100' && '🌟 Légende'}
+                      {id === 'win_100' && ' Légende'}
                       {id === 'play_10' && '🎮 Habitué'}
                       {id === 'play_50' && ' Accro'}
                       {id === 'play_100' && '💪 Vétéran'}
-                      {id === 'hard_win' && ' Maître Stratège'}
+                      {id === 'hard_win' && '🧠 Maître Stratège'}
                       {id === 'level_5' && '📈 Niveau 5'}
                       {id === 'level_10' && '🚀 Niveau 10'}
-                      {id === 'level_25' && ' Niveau 25'}
+                      {id === 'level_25' && '💎 Niveau 25'}
                       {id === 'xp_1000' && '✨ Millénaire'}
                     </div>
                   ))}
@@ -178,21 +198,34 @@ export function GameOverDisplay({
           <BannerAd />
         </div>
 
-        <Button 
-          onClick={handlePlayAgain} 
-          disabled={isAdLoading}
-          size="lg" 
-          className="bg-gradient-to-b from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-black font-black border-b-4 border-yellow-800 shadow-lg w-full py-6 text-lg flex items-center justify-center gap-2"
-        >
-          {isAdLoading ? (
-            <>
-              <Loader2 className="w-5 h-5 animate-spin" />
-              Chargement de la partie...
-            </>
-          ) : (
-            'Rejouer'
-          )}
-        </Button>
+        {/* BOUTONS D'ACTION */}
+        <div className="space-y-3">
+          <Button 
+            onClick={handlePlayAgain} 
+            disabled={isAdLoading}
+            size="lg" 
+            className="bg-gradient-to-b from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-black font-black border-b-4 border-yellow-800 shadow-lg w-full py-6 text-lg flex items-center justify-center gap-2"
+          >
+            {isAdLoading ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Chargement de la partie...
+              </>
+            ) : (
+              'Rejouer'
+            )}
+          </Button>
+
+          <Button 
+            onClick={handleQuit}
+            variant="outline"
+            size="lg"
+            className="w-full py-6 text-lg font-bold border-2 border-gray-300 text-gray-700 hover:bg-gray-100 hover:border-gray-400 flex items-center justify-center gap-2"
+          >
+            <Home className="w-5 h-5" />
+            Retour au menu
+          </Button>
+        </div>
       </div>
     </div>
   );

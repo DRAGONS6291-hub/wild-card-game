@@ -58,15 +58,21 @@ export function getLevelInfo(totalXp: number): LevelInfo {
   };
 }
 
-// XP gagné selon le résultat
+// XP gagné/perdu selon le résultat
 export function calculateXpReward(
   won: boolean, 
   difficulty: 'easy' | 'medium' | 'hard'
 ): number {
-  const baseXp = won ? 50 : 10;
-  const difficultyMultiplier = 
-    difficulty === 'easy' ? 1 : 
-    difficulty === 'medium' ? 1.5 : 2;
-  
-  return Math.floor(baseXp * difficultyMultiplier);
+  if (won) {
+    // Victoire : gain d'XP selon la difficulté
+    const baseXp = 50;
+    const difficultyMultiplier = 
+      difficulty === 'easy' ? 1 : 
+      difficulty === 'medium' ? 1.5 : 2;
+    
+    return Math.floor(baseXp * difficultyMultiplier);
+  } else {
+    // Défaite : perte d'XP (toujours -10, peu importe la difficulté)
+    return -10;
+  }
 }

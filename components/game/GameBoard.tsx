@@ -83,7 +83,8 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
           // 2. Calculer et mettre à jour l'XP et le niveau
           const xpReward = calculateXpReward(isWin, difficulty);
           const currentXp = profile.xp || 0;
-          const newTotalXp = currentXp + xpReward;
+          // Empêcher les XP négatifs (minimum 0)
+          const newTotalXp = Math.max(0, currentXp + xpReward);
           const levelInfo = getLevelInfo(newTotalXp);
           const newLevel = levelInfo.level;
 
