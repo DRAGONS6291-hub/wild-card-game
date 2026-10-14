@@ -3,14 +3,13 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
-import { Card } from '@/components/game/Card';
+import { PlayingCard } from '@/components/game/Card';
 import { GameOverDisplay } from '@/components/game/GameOverDisplay';
-import { LocalGameHeader } from '@/components/game/LocalGameHeader';
 import { SoundButton } from '@/components/ui/SoundButton';
 import { useSound } from '@/hooks/useSound';
-import { createGame, playCard as playCardAction, determineWinner } from '@/lib/game-logic';
-import type { Card as CardType, GameState, Player } from '@/lib/game-types';
-import { Trophy, RotateCcw, Home } from 'lucide-react';
+import { createInitialGameState, getWinner, isPlayable } from '@/lib/game-logic';
+import type { GameCard, GameState, Suit } from '@/lib/game-types';
+import { Home, RotateCcw } from 'lucide-react';
 
 interface GameBoardProps {
   difficulty: 'easy' | 'medium' | 'hard';
@@ -18,7 +17,7 @@ interface GameBoardProps {
 
 export function GameBoard({ difficulty }: GameBoardProps) {
   const router = useRouter();
-  const { userId, profile } = useAuth();
+  const { userId } = useAuth();
   const { playCard: playCardSound } = useSound();
   
   const [gameState, setGameState] = useState<GameState | null>(null);
@@ -60,29 +59,108 @@ export function GameBoard({ difficulty }: GameBoardProps) {
 
   // Initialiser la partie
   useEffect(() => {
-    const newGame = createGame(difficulty);
+    const newGame = createInitialGameState(difficulty);
     setGameState(newGame);
     setWinner(null);
   }, [difficulty]);
 
-  const handlePlayCard = (card: CardType) => {
+  const handlePlayCard = (card: GameCard) => {
     if (!gameState || winner) return;
+    if (gameState.currentPlayer !== 'player') return;
+    
+    // Vérifier si la carte est jouable
+    if (!isPlayable(card, gameState.topCard, gameState.forcedSuit, gameState.pendingDraw, gameState.jokerPendingDraw)) {
+      return;
+    }
     
     playCardSound();
     
-    const newState = playCardAction(gameState, card);
+    // Créer le nouvel état du jeu
+    const newPlayerHand = gameState.playerHand.filter(c => c.id !== card.id);
+    const newDiscardPile = [...gameState.discardPile, card];
+    
+    const newState: GameState = {
+      ...gameState,
+      playerHand: newPlayerHand,
+      discardPile: newDiscardPile,
+      topCard: card,
+      currentPlayer: 'ai',
+      forcedSuit: null,
+      gameMessage: "L'IA réfléchit...",
+      isAiThinking: true,
+    };
+    
     setGameState(newState);
     
-    // Vérifier si la partie est terminée
-    if (newState.playerHand.length === 0 || newState.aiHand.length === 0) {
-      const gameWinner = determineWinner(newState);
-      setWinner(gameWinner);
+    // Vérifier si le joueur a gagné
+    if (newPlayerHand.length === 0) {
+      setWinner('player');
+      return;
+    }
+    
+    // Tour de l'IA après un délai
+    setTimeout(() => {
+      playAiTurn(newState);
+    }, 1000);
+  };
+
+  const playAiTurn = (state: GameState) => {
+    // Logique simple de l'IA : jouer la première carte jouable
+    const playableCard = state.aiHand.find(card => 
+      isPlayable(card, state.topCard, state.forcedSuit, state.pendingDraw, state.jokerPendingDraw)
+    );
+    
+    if (playableCard) {
+      const newAiHand = state.aiHand.filter(c => c.id !== playableCard.id);
+      const newDiscardPile = [...state.discardPile, playableCard];
+      
+      const newState: GameState = {
+        ...state,
+        aiHand: newAiHand,
+        discardPile: newDiscardPile,
+        topCard: playableCard,
+        currentPlayer: 'player',
+        isAiThinking: false,
+        gameMessage: "À votre tour !",
+      };
+      
+      setGameState(newState);
+      
+      // Vérifier si l'IA a gagné
+      if (newAiHand.length === 0) {
+        setWinner('ai');
+      }
+    } else {
+      // L'IA pioche
+      if (state.deck.length > 0) {
+        const drawnCard = state.deck[0];
+        const newDeck = state.deck.slice(1);
+        const newAiHand = [...state.aiHand, drawnCard];
+        
+        const newState: GameState = {
+          ...state,
+          aiHand: newAiHand,
+          deck: newDeck,
+          currentPlayer: 'player',
+          isAiThinking: false,
+          gameMessage: "L'IA a pioché. À votre tour !",
+        };
+        
+        setGameState(newState);
+      } else {
+        setGameState({
+          ...state,
+          currentPlayer: 'player',
+          isAiThinking: false,
+          gameMessage: "Plus de cartes. À votre tour !",
+        });
+      }
     }
   };
 
   const handlePlayAgain = () => {
     setWinner(null);
-    const newGame = createGame(difficulty);
+    const newGame = createInitialGameState(difficulty);
     setGameState(newGame);
   };
 
@@ -101,53 +179,75 @@ export function GameBoard({ difficulty }: GameBoardProps) {
 
       <div className="relative z-10 max-w-6xl mx-auto">
         {/* En-tête */}
-        <LocalGameHeader 
-          player={gameState.player}
-          ai={gameState.ai}
-          difficulty={difficulty}
-        />
+        <div className="bg-black/40 backdrop-blur-sm rounded-xl p-4 border-2 border-yellow-400/50 flex items-center justify-between mb-8">
+          <div className="flex items-center gap-3">
+            <div className="bg-blue-500/20 p-2 rounded-lg">
+              <span className="text-blue-400 font-bold"></span>
+            </div>
+            <div>
+              <p className="text-white font-bold text-sm">Joueur</p>
+              <p className="text-yellow-400 font-black text-lg">Toi</p>
+            </div>
+          </div>
+
+          <div className="flex flex-col items-center">
+            <span className="bg-yellow-400 text-black text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider">
+              {difficulty === 'easy' ? 'Facile' : difficulty === 'medium' ? 'Moyen' : 'Difficile'}
+            </span>
+            <p className="text-white/60 text-xs mt-1">Wild Card</p>
+          </div>
+
+          <div className="flex items-center gap-3 text-right">
+            <div>
+              <p className="text-white font-bold text-sm">Adversaire</p>
+              <p className="text-red-400 font-black text-lg">IA</p>
+            </div>
+            <div className="bg-red-500/20 p-2 rounded-lg">
+              <span className="text-red-400 font-bold"></span>
+            </div>
+          </div>
+        </div>
 
         {/* Zone de jeu */}
-        <div className="mt-8 space-y-8">
+        <div className="space-y-8">
           {/* Main de l'IA */}
           <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border-2 border-yellow-400/50">
             <h3 className="text-white font-bold mb-4 text-center">
-              {gameState.ai.name} - {gameState.aiHand.length} cartes
+              IA - {gameState.aiHand.length} cartes
             </h3>
             <div className="flex justify-center gap-2 flex-wrap">
               {gameState.aiHand.map((card, index) => (
-                <Card key={index} card={card} hidden />
+                <PlayingCard key={card.id || index} isFaceDown />
               ))}
             </div>
           </div>
 
-          {/* Zone centrale (cartes jouées) */}
+          {/* Zone centrale (carte jouée) */}
           <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-8 border-2 border-yellow-400/50 min-h-[200px] flex items-center justify-center">
             <div className="flex gap-8 items-center">
-              {gameState.lastPlayedCard && (
-                <>
-                  <Card card={gameState.lastPlayedCard.playerCard} label="Tu as joué" />
-                  <div className="text-white text-4xl font-black">VS</div>
-                  <Card card={gameState.lastPlayedCard.aiCard} label={gameState.ai.name} />
-                </>
-              )}
+              <PlayingCard card={gameState.topCard} />
             </div>
           </div>
 
           {/* Main du joueur */}
           <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border-2 border-yellow-400/50">
             <h3 className="text-white font-bold mb-4 text-center">
-              Ton main - {gameState.playerHand.length} cartes
+              Ta main - {gameState.playerHand.length} cartes
             </h3>
             <div className="flex justify-center gap-2 flex-wrap">
-              {gameState.playerHand.map((card, index) => (
-                <Card 
-                  key={index} 
-                  card={card} 
-                  onClick={() => handlePlayCard(card)}
-                  disabled={!!winner}
-                />
-              ))}
+              {gameState.playerHand.map((card, index) => {
+                const playable = gameState.currentPlayer === 'player' && 
+                  isPlayable(card, gameState.topCard, gameState.forcedSuit, gameState.pendingDraw, gameState.jokerPendingDraw);
+                
+                return (
+                  <PlayingCard 
+                    key={card.id || index}
+                    card={card}
+                    isPlayable={playable}
+                    onPlay={handlePlayCard}
+                  />
+                );
+              })}
             </div>
           </div>
         </div>
@@ -175,7 +275,7 @@ export function GameBoard({ difficulty }: GameBoardProps) {
             winner={winner}
             onPlayAgain={handlePlayAgain}
             difficulty={difficulty}
-            userId={userId}
+            userId={userId ?? undefined}
             currentStats={{
               wins: currentWins,
               totalGames: currentTotalGames,

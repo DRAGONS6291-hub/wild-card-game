@@ -7,6 +7,8 @@ interface Profile {
   pseudo: string;
   age: number;
   avatar_url: string;
+  xp?: number;        // ← AJOUTE CETTE LIGNE
+  level?: number; 
 }
 
 interface AuthContextType {
