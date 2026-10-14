@@ -42,6 +42,7 @@ export default function MultiplayerRoomPage() {
   const [pendingCard, setPendingCard] = useState<GameCard | null>(null);
   const [actionLocked, setActionLocked] = useState(false);
 
+  // Créer un deck mélangé
   function createShuffledDeck(): GameCard[] {
     const suits: Suit[] = ['Hearts', 'Diamonds', 'Clubs', 'Spades'];
     const ranks = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'Jack', 'Queen', 'King', 'Ace'];
@@ -61,19 +62,22 @@ export default function MultiplayerRoomPage() {
     return deck;
   }
 
-  // ✅ FONCTION CORRIGÉE : bloque les cartes non-7 quand pending_draw > 0
+  // ✅ RÈGLES CORRIGÉES : Valet et Joker jouables sur TOUT
   function isCardPlayable(card: GameCard, topCard: GameCard | null, forcedSuit: Suit | null, pendingDraw: number = 0): boolean {
+    // Si on doit piocher (pending_draw > 0), on ne peut jouer QUE des 7
     if (pendingDraw > 0) {
       return card.rank === '7';
     }
     if (!topCard) return true;
-    if (card.isJoker) return true;
+    // ✅ Valet et Joker sont TOUJOURS jouables (cartes wild)
+    if (card.rank === 'Jack' || card.isJoker) return true;
     if (forcedSuit && card.suit === forcedSuit) return true;
     if (card.suit === topCard.suit) return true;
     if (card.rank === topCard.rank) return true;
     return false;
   }
 
+  // Charger la salle
   useEffect(() => {
     if (!roomId || !userId) return;
     const loadRoom = async () => {
@@ -97,6 +101,7 @@ export default function MultiplayerRoomPage() {
     loadRoom();
   }, [roomId, userId, router]);
 
+  // Écouter les changements en temps réel
   useEffect(() => {
     if (!roomId) return;
     const channel = supabase.channel(`room-${roomId}`)
@@ -115,6 +120,7 @@ export default function MultiplayerRoomPage() {
     return () => { supabase.removeChannel(channel); };
   }, [roomId, isPlayer1]);
 
+  // Bouton "Prêt"
   const handleReady = async () => {
     if (!room) return;
     setActionLocked(true);
@@ -147,16 +153,15 @@ export default function MultiplayerRoomPage() {
     await supabase.from('match_rooms').update({ game_state: updateData }).eq('id', roomId);
   };
 
-  // ✅ FONCTION CORRIGÉE : cumul des 7
+  // ✅ JOUER UNE CARTE - Règles corrigées
   const handlePlayCard = async (card: GameCard) => {
     if (!gameState || actionLocked) return;
     const myId: 1 | 2 = isPlayer1 ? 1 : 2;
     if (gameState.current_turn !== myId) return;
     
-    // ✅ Appel corrigé avec gameState.pending_draw
+    // Vérifier si jouable
     const playable = isCardPlayable(card, gameState.top_card, gameState.forced_suit, gameState.pending_draw);
     if (!playable) return;
-    if (gameState.pending_draw > 0 && card.rank !== '7') return;
     
     setActionLocked(true);
     const myHand = isPlayer1 ? [...gameState.player1_hand] : [...gameState.player2_hand];
@@ -165,52 +170,95 @@ export default function MultiplayerRoomPage() {
     myHand.splice(cardIndex, 1);
     const newDiscard = [...gameState.discard_pile, card];
     const nextTurn: 1 | 2 = myId === 1 ? 2 : 1;
+    
     let newMessage = `Joueur ${myId} joue ${card.rank}`;
     let newPendingDraw = gameState.pending_draw;
     let newForcedSuit = gameState.forced_suit;
     let newCurrentTurn = nextTurn;
     
+    // === RÈGLES DES CARTES SPÉCIALES ===
+    
+    // 7 : cumule +2, l'adversaire DOIT piocher ou jouer un autre 7
     if (card.rank === '7') {
       newPendingDraw += 2;
-      newMessage += ` (+${newPendingDraw} cartes à piocher pour l'adversaire)`;
-      newCurrentTurn = nextTurn;
-    } else if (card.rank === '10') {
-      newMessage += ' (tour de l\'adversaire passé)';
-      newCurrentTurn = myId;
-    } else if (card.isJoker || card.rank === 'Jack') {
+      newMessage = `7 joué ! +${newPendingDraw} cartes à piocher pour l'adversaire (ou joue un 7)`;
+      newCurrentTurn = nextTurn; // Tour passe à l'adversaire
+    }
+    // 10 : fait sauter le tour de l'adversaire (on rejoue)
+    else if (card.rank === '10') {
+      newMessage = '10 joué ! Tour de l\'adversaire sauté';
+      newCurrentTurn = myId; // On garde le tour
+    }
+    // Valet ou Joker : demander la couleur
+    else if (card.rank === 'Jack' || card.isJoker) {
       setPendingCard(card);
       setShowSuitPicker(true);
-      const partialState = { ...gameState, ...(isPlayer1 ? { player1_hand: myHand } : { player2_hand: myHand }), discard_pile: newDiscard, top_card: card, pending_draw: newPendingDraw, message: newMessage + ' - Choix de couleur...' };
+      const partialState = {
+        ...gameState,
+        ...(isPlayer1 ? { player1_hand: myHand } : { player2_hand: myHand }),
+        discard_pile: newDiscard,
+        top_card: card,
+        pending_draw: newPendingDraw,
+        message: newMessage + ' - Choisis une couleur...',
+      };
       await supabase.from('match_rooms').update({ game_state: partialState }).eq('id', roomId);
-      return;
+      return; // On attend le choix de couleur
     }
     
+    // Vérifier victoire
     let winner = gameState.winner;
     let status = gameState.status;
-    if (myHand.length === 0) { winner = myId; status = 'finished'; newMessage = `🎉 Joueur ${myId} a gagné !`; }
-    const newState: GameState = { ...gameState, ...(isPlayer1 ? { player1_hand: myHand } : { player2_hand: myHand }), discard_pile: newDiscard, top_card: card, current_turn: winner ? gameState.current_turn : newCurrentTurn, forced_suit: newForcedSuit, pending_draw: newPendingDraw, winner, status, message: newMessage };
+    if (myHand.length === 0) {
+      winner = myId;
+      status = 'finished';
+      newMessage = `🎉 Joueur ${myId} a gagné !`;
+    }
+    
+    const newState: GameState = {
+      ...gameState,
+      ...(isPlayer1 ? { player1_hand: myHand } : { player2_hand: myHand }),
+      discard_pile: newDiscard,
+      top_card: card,
+      current_turn: winner ? gameState.current_turn : newCurrentTurn,
+      forced_suit: newForcedSuit,
+      pending_draw: newPendingDraw,
+      winner,
+      status,
+      message: newMessage,
+    };
+    
     await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
   };
 
+  // Choisir une couleur (après Valet ou Joker)
   const handleChooseSuit = async (suit: Suit) => {
     if (!gameState || !pendingCard) return;
     setShowSuitPicker(false);
     const myId: 1 | 2 = isPlayer1 ? 1 : 2;
     const nextTurn: 1 | 2 = myId === 1 ? 2 : 1;
-    const newState: GameState = { ...gameState, forced_suit: suit, current_turn: nextTurn, message: `Joueur ${myId} choisit ${SUITS_FR[suit]}` };
+    const newState: GameState = {
+      ...gameState,
+      forced_suit: suit,
+      current_turn: nextTurn,
+      message: `Joueur ${myId} choisit ${SUITS_FR[suit]}`,
+    };
     setPendingCard(null);
     await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
   };
 
-  // ✅ FONCTION CORRIGÉE : pioche avec cumul
+  // ✅ PIOCHER - Gère le cumul des 7
   const handleDraw = async () => {
     if (!gameState || actionLocked) return;
     const myId: 1 | 2 = isPlayer1 ? 1 : 2;
     if (gameState.current_turn !== myId) return;
     setActionLocked(true);
+    
+    // Si pending_draw > 0, on pioche le total cumulé
     const cardsToDraw = gameState.pending_draw > 0 ? gameState.pending_draw : 1;
     let newDeck = [...gameState.deck];
     let newDiscard = [...gameState.discard_pile];
+    
+    // Si pas assez de cartes, on recycle la défausse
     if (newDeck.length < cardsToDraw) {
       const lastCard = newDiscard[newDiscard.length - 1];
       const toShuffle = newDiscard.slice(0, -1);
@@ -221,14 +269,26 @@ export default function MultiplayerRoomPage() {
       newDeck = [...newDeck, ...toShuffle];
       newDiscard = [lastCard];
     }
+    
     const drawnCards = newDeck.splice(0, cardsToDraw);
     const myHand = isPlayer1 ? [...gameState.player1_hand] : [...gameState.player2_hand];
     myHand.push(...drawnCards);
     const nextTurn: 1 | 2 = myId === 1 ? 2 : 1;
-    const newState: GameState = { ...gameState, ...(isPlayer1 ? { player1_hand: myHand } : { player2_hand: myHand }), deck: newDeck, discard_pile: newDiscard, pending_draw: 0, current_turn: nextTurn, message: `Joueur ${myId} pioche ${cardsToDraw} carte(s)` };
+    
+    const newState: GameState = {
+      ...gameState,
+      ...(isPlayer1 ? { player1_hand: myHand } : { player2_hand: myHand }),
+      deck: newDeck,
+      discard_pile: newDiscard,
+      pending_draw: 0, // Reset après pioche
+      current_turn: nextTurn,
+      message: `Joueur ${myId} pioche ${cardsToDraw} carte(s)`,
+    };
+    
     await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
   };
 
+  // Nouvelle partie
   const handleNewGame = async () => {
     if (!room) return;
     setActionLocked(true);
@@ -236,7 +296,21 @@ export default function MultiplayerRoomPage() {
     const p1Hand = deck.splice(0, 7);
     const p2Hand = deck.splice(0, 7);
     const topCard = deck.shift()!;
-    const newState: GameState = { status: 'playing', player1_ready: true, player2_ready: true, current_turn: 1, player1_hand: p1Hand, player2_hand: p2Hand, deck, discard_pile: [topCard], top_card: topCard, forced_suit: null, pending_draw: 0, winner: null, message: 'Nouvelle partie ! Tour du Joueur 1' };
+    const newState: GameState = {
+      status: 'playing',
+      player1_ready: true,
+      player2_ready: true,
+      current_turn: 1,
+      player1_hand: p1Hand,
+      player2_hand: p2Hand,
+      deck,
+      discard_pile: [topCard],
+      top_card: topCard,
+      forced_suit: null,
+      pending_draw: 0,
+      winner: null,
+      message: 'Nouvelle partie ! Tour du Joueur 1',
+    };
     await supabase.from('match_rooms').update({ game_state: newState, status: 'playing', winner_id: null }).eq('id', roomId);
   };
 
@@ -261,7 +335,7 @@ export default function MultiplayerRoomPage() {
         <div className="bg-black/60 backdrop-blur-sm rounded-xl p-3 mb-4 text-center border-2 border-yellow-400/50">
           <p className="text-white font-bold text-sm md:text-base">{gameState?.message || 'Chargement...'}</p>
           {gameState?.forced_suit && (<p className="text-yellow-400 text-xs mt-1">Couleur imposée : {SUITS_FR[gameState.forced_suit]}</p>)}
-          {gameState?.pending_draw > 0 && (<p className="text-red-400 text-xs mt-1 font-bold animate-pulse">️ +{gameState.pending_draw} cartes à piocher ! (Joue un 7 ou pioche)</p>)}
+          {gameState?.pending_draw > 0 && (<p className="text-red-400 text-xs mt-1 font-bold animate-pulse">⚠️ OBLIGATOIRE : +{gameState.pending_draw} cartes à piocher ! (Joue un 7 pour cumuler ou pioche)</p>)}
         </div>
         {!gameState || gameState.status === 'waiting' ? (
           <div className="bg-white/95 rounded-2xl p-6 shadow-2xl border-2 border-yellow-400 text-center">
@@ -314,7 +388,6 @@ export default function MultiplayerRoomPage() {
               </div>
               <div className="flex justify-center gap-1 flex-wrap">
                 {myHand.map((card) => {
-                  // ✅ APPEL CORRIGÉ avec gameState.pending_draw
                   const playable = isMyTurn && isCardPlayable(card, gameState.top_card, gameState.forced_suit, gameState.pending_draw);
                   return (<PlayingCard key={card.id} card={card} isPlayable={playable} onPlay={handlePlayCard} className="w-14 h-20 md:w-20 md:h-28" />);
                 })}
