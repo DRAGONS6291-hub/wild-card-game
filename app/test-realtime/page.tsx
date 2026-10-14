@@ -11,7 +11,7 @@ export default function TestRealtimePage() {
 
   useEffect(() => {
     if (!userId) {
-      setMessage('❌ Non connecté. Connecte-toi d\'abord.');
+      setMessage(' Non connecté. Connecte-toi d\'abord.');
       return;
     }
 
@@ -50,31 +50,43 @@ export default function TestRealtimePage() {
       return;
     }
 
-    const { data, error } = await supabase
-      .from('matchmaking_queue')
-      .upsert({
-        user_id: userId,
-        level: 1,
-        status: 'searching',
-        created_at: new Date().toISOString(),
-      }, {
-        onConflict: 'user_id',
-      })
-      .select()
-      .single();
+    try {
+      // 1. D'abord supprimer toute ligne existante pour cet user_id
+      await supabase
+        .from('matchmaking_queue')
+        .delete()
+        .eq('user_id', userId);
 
-    if (error) {
-      setMessage(`❌ Erreur: ${error.message}`);
-    } else {
-      setMessage(`✅ Insertion réussie ! ID: ${data.id}`);
-      // Nettoyer après 3 secondes
-      setTimeout(async () => {
-        await supabase
-          .from('matchmaking_queue')
-          .delete()
-          .eq('user_id', userId);
-        setMessage('✅ Nettoyé. Prêt pour un nouveau test.');
-      }, 3000);
+      // 2. Puis insérer une nouvelle ligne
+      const { data, error } = await supabase
+        .from('matchmaking_queue')
+        .insert({
+          user_id: userId,
+          level: 1,
+          status: 'searching',
+          created_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+
+      if (error) {
+        setMessage(` Erreur: ${error.message}`);
+        console.error('Erreur insert:', error);
+      } else {
+        setMessage(`✅ Insertion réussie ! ID: ${data.id}`);
+        
+        // 3. Nettoyer après 3 secondes
+        setTimeout(async () => {
+          await supabase
+            .from('matchmaking_queue')
+            .delete()
+            .eq('user_id', userId);
+          setMessage('✅ Nettoyé. Prêt pour un nouveau test.');
+        }, 3000);
+      }
+    } catch (err) {
+      setMessage(`❌ Erreur: ${err}`);
+      console.error('Erreur:', err);
     }
   };
 
@@ -96,10 +108,10 @@ export default function TestRealtimePage() {
         <div className="text-sm text-gray-500 bg-yellow-50 p-3 rounded-lg">
           <strong>Comment tester :</strong>
           <ol className="list-decimal ml-4 mt-2 space-y-1">
-            <li>Ouvre cette page dans 2 navigateurs/onglets différents</li>
+            <li>Ouvre cette page dans 2 navigateurs différents</li>
             <li>Connecte-toi avec 2 comptes différents</li>
-            <li>Clique sur "Tester" dans un onglet</li>
-            <li>L'autre onglet doit afficher "Changement reçu !" automatiquement</li>
+            <li>Clique sur "Tester" dans un navigateur</li>
+            <li>L'autre navigateur doit afficher "Changement reçu !" automatiquement</li>
           </ol>
         </div>
       </div>
