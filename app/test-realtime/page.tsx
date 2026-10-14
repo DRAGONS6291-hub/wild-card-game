@@ -1,13 +1,20 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/components/AuthProvider';
 import { Button } from '@/components/ui/button';
 
 export default function TestRealtimePage() {
+  const { userId } = useAuth();
   const [message, setMessage] = useState('En attente...');
   const [count, setCount] = useState(0);
 
   useEffect(() => {
+    if (!userId) {
+      setMessage('❌ Non connecté. Connecte-toi d\'abord.');
+      return;
+    }
+
     const channel = supabase
       .channel('test-realtime')
       .on(
@@ -35,15 +42,23 @@ export default function TestRealtimePage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [userId]);
 
   const testInsert = async () => {
+    if (!userId) {
+      setMessage('❌ Tu dois être connecté pour tester.');
+      return;
+    }
+
     const { data, error } = await supabase
       .from('matchmaking_queue')
-      .insert({
-        user_id: '00000000-0000-0000-0000-000000000000',
+      .upsert({
+        user_id: userId,
         level: 1,
         status: 'searching',
+        created_at: new Date().toISOString(),
+      }, {
+        onConflict: 'user_id',
       })
       .select()
       .single();
@@ -52,12 +67,14 @@ export default function TestRealtimePage() {
       setMessage(`❌ Erreur: ${error.message}`);
     } else {
       setMessage(`✅ Insertion réussie ! ID: ${data.id}`);
+      // Nettoyer après 3 secondes
       setTimeout(async () => {
         await supabase
           .from('matchmaking_queue')
           .delete()
-          .eq('id', data.id);
-      }, 2000);
+          .eq('user_id', userId);
+        setMessage('✅ Nettoyé. Prêt pour un nouveau test.');
+      }, 3000);
     }
   };
 
@@ -72,15 +89,16 @@ export default function TestRealtimePage() {
           <p className="text-sm text-gray-500 mt-2">Changements reçus : {count}</p>
         </div>
 
-        <Button onClick={testInsert} className="w-full">
-          Tester une insertion
+        <Button onClick={testInsert} className="w-full" disabled={!userId}>
+          {userId ? 'Tester une insertion' : 'Connecte-toi d\'abord'}
         </Button>
 
         <div className="text-sm text-gray-500 bg-yellow-50 p-3 rounded-lg">
           <strong>Comment tester :</strong>
           <ol className="list-decimal ml-4 mt-2 space-y-1">
-            <li>Ouvre cette page dans 2 onglets différents</li>
-            <li>Clique sur "Tester une insertion" dans un onglet</li>
+            <li>Ouvre cette page dans 2 navigateurs/onglets différents</li>
+            <li>Connecte-toi avec 2 comptes différents</li>
+            <li>Clique sur "Tester" dans un onglet</li>
             <li>L'autre onglet doit afficher "Changement reçu !" automatiquement</li>
           </ol>
         </div>
