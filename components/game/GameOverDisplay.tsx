@@ -13,7 +13,12 @@ interface GameOverDisplayProps {
   onPlayAgain: () => void;
   difficulty?: 'easy' | 'medium' | 'hard';
   userId?: string;
-  currentStats?: { wins: number; totalGames: number; xp: number; level: number };
+  currentStats?: {
+    wins: number;
+    totalGames: number;
+    xp: number;
+    level: number;
+  };
 }
 
 const ConfettiPiece = ({ id, style }: { id: number; style: React.CSSProperties }) => (
@@ -23,7 +28,7 @@ const ConfettiPiece = ({ id, style }: { id: number; style: React.CSSProperties }
 export function GameOverDisplay({ 
   winner, 
   onPlayAgain, 
-  difficulty = 'easy',
+  difficulty = 'medium',
   userId,
   currentStats
 }: GameOverDisplayProps) {
@@ -63,17 +68,6 @@ export function GameOverDisplay({
         .update({ xp: newXp, level: levelInfo.level })
         .eq('id', userId);
 
-      // Mettre à jour le leaderboard
-      supabase
-        .from('leaderboard')
-        .update({ 
-          wins: won ? currentStats.wins + 1 : currentStats.wins,
-          total_games: currentStats.totalGames + 1,
-          xp: newXp,
-          level: levelInfo.level
-        })
-        .eq('id', userId);
-
       // Vérifier les succès
       checkAndUnlockAchievements(userId, {
         wins: won ? currentStats.wins + 1 : currentStats.wins,
@@ -84,7 +78,7 @@ export function GameOverDisplay({
       }).then((newlyUnlocked) => {
         if (newlyUnlocked.length > 0) {
           setUnlockedAchievements(newlyUnlocked);
-          playAchievement?.();
+          if (typeof playAchievement === 'function') playAchievement();
         }
         setShowRewards(true);
       });
@@ -134,16 +128,16 @@ export function GameOverDisplay({
         <Trophy className="w-16 h-16 mx-auto text-yellow-500 mb-4" />
         <h2 className="text-3xl font-black mb-4 text-gray-800">{message}</h2>
         
-        {/* 🎯 Récompenses XP et succès */}
-        {showRewards && (
+        {/* Récompenses XP et succès */}
+        {showRewards && (xpGained > 0 || newLevel || unlockedAchievements.length > 0) && (
           <div className="my-4 p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border-2 border-purple-200 space-y-3">
-            {/* XP gagné */}
-            <div className="flex items-center justify-center gap-2 text-purple-700 font-bold">
-              <Sparkles className="w-5 h-5" />
-              <span>+{xpGained} XP</span>
-            </div>
+            {xpGained > 0 && (
+              <div className="flex items-center justify-center gap-2 text-purple-700 font-bold">
+                <Sparkles className="w-5 h-5" />
+                <span>+{xpGained} XP</span>
+              </div>
+            )}
             
-            {/* Nouveau niveau */}
             {newLevel && (
               <div className="flex items-center justify-center gap-2 text-yellow-600 font-black animate-pulse">
                 <Star className="w-5 h-5" fill="currentColor" />
@@ -151,26 +145,25 @@ export function GameOverDisplay({
               </div>
             )}
             
-            {/* Succès débloqués */}
             {unlockedAchievements.length > 0 && (
               <div className="pt-2 border-t border-purple-200">
                 <p className="text-xs font-bold text-purple-600 mb-2 uppercase">
                   🏆 Succès débloqué{unlockedAchievements.length > 1 ? 's' : ''} !
                 </p>
-                <div className="space-y-1">
+                <div className="flex flex-wrap gap-1 justify-center">
                   {unlockedAchievements.map(id => (
-                    <div key={id} className="text-sm bg-white/70 px-3 py-1 rounded-full inline-block mr-1">
+                    <div key={id} className="text-sm bg-white/70 px-3 py-1 rounded-full">
                       {id === 'first_win' && '🏆 Première Victoire'}
                       {id === 'win_10' && '⚔️ Guerrier'}
                       {id === 'win_50' && '👑 Champion'}
                       {id === 'win_100' && '🌟 Légende'}
                       {id === 'play_10' && '🎮 Habitué'}
-                      {id === 'play_50' && '🔥 Accro'}
+                      {id === 'play_50' && ' Accro'}
                       {id === 'play_100' && '💪 Vétéran'}
-                      {id === 'hard_win' && '🧠 Maître Stratège'}
+                      {id === 'hard_win' && ' Maître Stratège'}
                       {id === 'level_5' && '📈 Niveau 5'}
-                      {id === 'level_10' && ' Niveau 10'}
-                      {id === 'level_25' && '💎 Niveau 25'}
+                      {id === 'level_10' && '🚀 Niveau 10'}
+                      {id === 'level_25' && ' Niveau 25'}
                       {id === 'xp_1000' && '✨ Millénaire'}
                     </div>
                   ))}
