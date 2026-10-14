@@ -372,7 +372,7 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
           )}
         </div>
 
-        <div className="flex justify-center items-end -space-x-6 md:-space-x-8 px-4">
+        <div className="flex justify-center items-end -space-x-4 sm:-space-x-6 md:-space-x-8 px-2 sm:px-4">
           {sortedPlayerHand.map((card, index) => (
             <div 
               key={card.id} 

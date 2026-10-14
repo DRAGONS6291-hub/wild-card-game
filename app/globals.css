@@ -1,4 +1,4 @@
-﻿@tailwind base;
+@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
@@ -34,5 +34,30 @@
   body {
     @apply bg-background text-foreground;
     font-family: 'PT Sans', sans-serif;
+  }
+}
+
+/* 📱 CORRECTION MOBILE POUR LES CARTES */
+@media (max-width: 640px) {
+  /* Forcer les couleurs vives sur mobile */
+  .playing-card,
+  [class*="aspect-[2.5/3.5]"] {
+    filter: brightness(1.15) contrast(1.15) !important;
+  }
+  
+  /* Réduire l'opacité du fond sombre pour plus de luminosité */
+  .bg-white\/10,
+  .bg-white\/20 {
+    background-color: rgba(255, 255, 255, 0.15) !important;
+  }
+  
+  /* Améliorer la lisibilité des textes */
+  .text-white {
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+  }
+  
+  /* Renforcer les bordures */
+  [class*="border-yellow"] {
+    border-width: 3px !important;
   }
 }

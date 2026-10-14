@@ -136,12 +136,12 @@ export function PlayingCard({ card, isFaceDown, isPlayable, onPlay, className }:
 
   const Component = onPlay ? 'button' : 'div';
 
-  // Dos de carte
+  // Dos de carte - OPTIMISÉ MOBILE
   if (isFaceDown) {
     return (
       <div
         className={cn(
-          "aspect-[2.5/3.5] w-20 md:w-24 rounded-xl border-2 border-yellow-600 shadow-lg flex items-center justify-center overflow-hidden relative",
+          "aspect-[2.5/3.5] w-16 sm:w-20 md:w-24 rounded-xl border-2 border-yellow-600 shadow-lg flex items-center justify-center overflow-hidden relative",
           className
         )}
         style={{
@@ -151,7 +151,7 @@ export function PlayingCard({ card, isFaceDown, isPlayable, onPlay, className }:
         <div className="absolute inset-1.5 border border-yellow-600/50 rounded-lg"></div>
         <div className="absolute inset-2.5 border border-yellow-600/30 rounded-md"></div>
         <div className="relative z-10 flex flex-col items-center justify-center">
-          <div className="w-10 h-10 md:w-12 md:h-12 rotate-45 bg-gradient-to-br from-yellow-400 to-yellow-600 border-2 border-yellow-300 shadow-lg"></div>
+          <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rotate-45 bg-gradient-to-br from-yellow-400 to-yellow-600 border-2 border-yellow-300 shadow-lg"></div>
         </div>
         <div className="absolute top-2 left-2 w-1.5 h-1.5 bg-yellow-500/60 rounded-full"></div>
         <div className="absolute top-2 right-2 w-1.5 h-1.5 bg-yellow-500/60 rounded-full"></div>
@@ -173,32 +173,32 @@ export function PlayingCard({ card, isFaceDown, isPlayable, onPlay, className }:
       onClick={handlePlay}
       disabled={!isPlayable}
       className={cn(
-        "aspect-[2.5/3.5] w-20 md:w-24 rounded-xl bg-white border-2 border-gray-300 shadow-lg p-2 flex flex-col justify-between transition-all duration-300 overflow-hidden",
-        isPlayable && "cursor-pointer ring-4 ring-yellow-400 ring-offset-2 hover:-translate-y-4 shadow-2xl",
+        "aspect-[2.5/3.5] w-16 sm:w-20 md:w-24 rounded-xl bg-white border-2 border-gray-300 shadow-lg p-1.5 sm:p-2 flex flex-col justify-between transition-all duration-300 overflow-hidden",
+        isPlayable && "cursor-pointer ring-2 sm:ring-4 ring-yellow-400 ring-offset-1 sm:ring-offset-2 hover:-translate-y-2 sm:hover:-translate-y-4 shadow-2xl",
         !isPlayable && onPlay && "cursor-not-allowed opacity-70",
         textColor,
         className
       )}
     >
-      {/* Coin haut gauche */}
+      {/* Coin haut gauche - OPTIMISÉ MOBILE */}
       <div className="flex flex-col items-start leading-none">
-        <span className="font-bold text-base md:text-lg">{rankText}</span>
-        {Icon && <Icon className="h-3 w-3 md:h-4 md:w-4 -mt-1" fill="currentColor" />}
+        <span className="font-bold text-sm sm:text-base md:text-lg">{rankText}</span>
+        {Icon && <Icon className="h-2.5 w-2.5 sm:h-3 sm:w-3 md:h-4 md:w-4 -mt-0.5" fill="currentColor" />}
       </div>
 
-      {/* Centre de la carte */}
+      {/* Centre de la carte - OPTIMISÉ MOBILE */}
       <div className="flex items-center justify-center flex-1">
         {card.isJoker ? (
-          <JokerIcon className="w-14 h-20 md:w-16 md:h-24" />
+          <JokerIcon className="w-10 h-14 sm:w-14 sm:h-20 md:w-16 md:h-24" />
         ) : (
-          Icon && <Icon className="h-6 w-6 md:h-8 md:w-8" fill="currentColor" />
+          Icon && <Icon className="h-4 w-4 sm:h-6 sm:w-6 md:h-8 md:w-8" fill="currentColor" />
         )}
       </div>
 
-      {/* Coin bas droit */}
+      {/* Coin bas droit - OPTIMISÉ MOBILE */}
       <div className="flex flex-col items-end leading-none rotate-180">
-        <span className="font-bold text-xs md:text-sm">{rankText}</span>
-        {Icon && <Icon className="h-2.5 w-2.5 md:h-3 md:w-3 -mt-0.5" fill="currentColor" />}
+        <span className="font-bold text-xs sm:text-xs md:text-sm">{rankText}</span>
+        {Icon && <Icon className="h-2 w-2 sm:h-2.5 sm:w-2.5 md:h-3 md:w-3 -mt-0.5" fill="currentColor" />}
       </div>
     </Component>
   );
