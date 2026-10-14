@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -121,7 +121,15 @@ export default function MenuPage() {
 
           {/* Autres boutons - Grille responsive */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <SoundLink href="/leaderboard" className="w-full">
+            {/* Nouveau bouton Multijoueur */}
+          <SoundLink href="/multiplayer" className="w-full">
+             <button className="w-full bg-gradient-to-b from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white font-bold border-b-4 border-purple-900 shadow-lg py-4 flex items-center justify-center gap-2">
+               <Sword className="w-5 h-5" /> Multijoueur
+             </button>
+          </SoundLink>
+
+             {/* Bouton Classement */}
+           <SoundLink href="/leaderboard" className="w-full">
               <button className="w-full bg-gradient-to-b from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800 text-white font-bold border-b-4 border-purple-900 shadow-lg py-4 flex items-center justify-center gap-2">
                 <Trophy className="w-5 h-5" /> Classement
               </button>
