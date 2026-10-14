@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -6,7 +6,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { SoundButton } from '@/components/ui/SoundButton';
 import { SoundLink } from '@/components/ui/SoundLink';
 import { BannerAd } from '@/components/ads/BannerAd';
-import { Play, Trophy, User, Settings, LogOut, Heart, Club, Diamond } from 'lucide-react';
+import { Play, Trophy, User, Settings, LogOut, Heart, Club, Diamond, Sword } from 'lucide-react'; // ← SWORD AJOUTÉ ICI
 
 export default function MenuPage() {
   const router = useRouter();
@@ -121,16 +121,15 @@ export default function MenuPage() {
 
           {/* Autres boutons - Grille responsive */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {/* Nouveau bouton Multijoueur */}
-          <SoundLink href="/multiplayer" className="w-full">
-             <button className="w-full bg-gradient-to-b from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white font-bold border-b-4 border-purple-900 shadow-lg py-4 flex items-center justify-center gap-2">
-               <Sword className="w-5 h-5" /> Multijoueur
-             </button>
-          </SoundLink>
+            {/* NOUVEAU BOUTON MULTIJOUER */}
+            <SoundLink href="/multiplayer" className="w-full">
+              <button className="w-full bg-gradient-to-b from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white font-bold border-b-4 border-purple-900 shadow-lg py-4 flex items-center justify-center gap-2">
+                <Sword className="w-5 h-5" /> Multijoueur
+              </button>
+            </SoundLink>
 
-             {/* Bouton Classement */}
-           <SoundLink href="/leaderboard" className="w-full">
-              <button className="w-full bg-gradient-to-b from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800 text-white font-bold border-b-4 border-purple-900 shadow-lg py-4 flex items-center justify-center gap-2">
+            <SoundLink href="/leaderboard" className="w-full">
+              <button className="w-full bg-gradient-to-b from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-black font-bold border-b-4 border-yellow-800 shadow-lg py-4 flex items-center justify-center gap-2">
                 <Trophy className="w-5 h-5" /> Classement
               </button>
             </SoundLink>
