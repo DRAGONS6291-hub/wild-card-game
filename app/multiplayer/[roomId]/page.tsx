@@ -132,6 +132,7 @@ export default function MultiplayerRoomPage() {
     return () => { supabase.removeChannel(channel); };
   }, [roomId, isPlayer1]);
 
+  // ✅ MODIFIÉ : Gère la carte de démarrage (7 ou Joker)
   const handleReady = async () => {
     if (!room) return;
     setActionLocked(true);
@@ -146,8 +147,8 @@ export default function MultiplayerRoomPage() {
       const p1Hand = deck.splice(0, 7);
       const p2Hand = deck.splice(0, 7);
       const topCard = deck.shift()!;
+      
       updateData.status = 'playing';
-      updateData.message = 'La partie commence ! Tour du Joueur 1';
       updateData.player1_hand = p1Hand;
       updateData.player2_hand = p2Hand;
       updateData.deck = deck;
@@ -158,6 +159,35 @@ export default function MultiplayerRoomPage() {
       updateData.pending_draw = 0;
       updateData.winner = null;
       updateData.just_drew = false;
+      
+      // ✅ Règle de démarrage : si la première carte est un 7 ou Joker
+      let startMessage = 'La partie commence ! Tour du Joueur 1';
+      
+      if (topCard.rank === '7') {
+        // Vérifier si le Joueur 1 a un 7 pour contrer
+        const player1HasSeven = p1Hand.some(c => c.rank === '7');
+        if (player1HasSeven) {
+          startMessage = `La partie commence ! Un 7 est retourné. Joueur 1 a un 7 pour contrer !`;
+        } else {
+          // Pioche automatique de 2 cartes pour le Joueur 1
+          const { newDeck, newDiscard, drawnCards } = drawCardsAutomatic(deck, [topCard], 2);
+          p1Hand.push(...drawnCards);
+          updateData.player1_hand = p1Hand;
+          updateData.deck = newDeck;
+          updateData.discard_pile = newDiscard;
+          startMessage = `La partie commence ! Un 7 est retourné. Joueur 1 pioche automatiquement 2 cartes !`;
+        }
+      } else if (topCard.isJoker) {
+        // Pioche automatique de 5 cartes pour le Joueur 1
+        const { newDeck, newDiscard, drawnCards } = drawCardsAutomatic(deck, [topCard], 5);
+        p1Hand.push(...drawnCards);
+        updateData.player1_hand = p1Hand;
+        updateData.deck = newDeck;
+        updateData.discard_pile = newDiscard;
+        startMessage = `La partie commence ! Un Joker est retourné. Joueur 1 pioche automatiquement 5 cartes !`;
+      }
+      
+      updateData.message = startMessage;
     } else {
       updateData.status = 'waiting';
       updateData.message = 'En attente de l\'adversaire...';
@@ -165,7 +195,6 @@ export default function MultiplayerRoomPage() {
     await supabase.from('match_rooms').update({ game_state: updateData }).eq('id', roomId);
   };
 
-  // ✅ MODIFIÉ : Pioche automatique si l'adversaire n'a pas de 7
   const handlePlayCard = async (card: GameCard) => {
     if (!gameState || actionLocked) return;
     const myId: 1 | 2 = isPlayer1 ? 1 : 2;
@@ -187,17 +216,13 @@ export default function MultiplayerRoomPage() {
 
     if (card.rank === '7') {
       newPendingDraw += 2;
-      
-      // ✅ Vérifier si l'adversaire a un 7 dans sa main
       const opponentHand = isPlayer1 ? [...gameState.player2_hand] : [...gameState.player1_hand];
       const opponentHasSeven = opponentHand.some(c => c.rank === '7');
       
       if (opponentHasSeven) {
-        // L'adversaire peut contrer avec un 7
         newMessage = `7 joué ! +${newPendingDraw} cartes. ${opponentName} a un 7 pour contrer !`;
         newCurrentTurn = nextTurn;
       } else {
-        // ✅ Pioche automatique : l'adversaire n'a pas de 7
         const { newDeck, newDiscard: newDiscard2, drawnCards } = drawCardsAutomatic(
           gameState.deck,
           newDiscard,
@@ -205,7 +230,7 @@ export default function MultiplayerRoomPage() {
         );
         opponentHand.push(...drawnCards);
         newMessage = `7 joué ! ${opponentName} n'a pas de 7, pioche automatiquement ${newPendingDraw} cartes !`;
-        newCurrentTurn = myId; // On garde le tour car l'adversaire a "passé"
+        newCurrentTurn = myId;
         newPendingDraw = 0;
         
         newState = {
@@ -311,7 +336,28 @@ export default function MultiplayerRoomPage() {
     const p1Hand = deck.splice(0, 7);
     const p2Hand = deck.splice(0, 7);
     const topCard = deck.shift()!;
-    const newState: GameState = { status: 'playing', player1_ready: true, player2_ready: true, current_turn: 1, player1_hand: p1Hand, player2_hand: p2Hand, deck, discard_pile: [topCard], top_card: topCard, forced_suit: null, pending_draw: 0, winner: null, message: 'Nouvelle partie ! Tour du Joueur 1', just_drew: false };
+    
+    let startMessage = 'Nouvelle partie ! Tour du Joueur 1';
+    
+    // ✅ Règle de démarrage
+    if (topCard.rank === '7') {
+      const player1HasSeven = p1Hand.some(c => c.rank === '7');
+      if (player1HasSeven) {
+        startMessage = `Nouvelle partie ! Un 7 est retourné. Joueur 1 a un 7 pour contrer !`;
+      } else {
+        const { newDeck, newDiscard, drawnCards } = drawCardsAutomatic(deck, [topCard], 2);
+        p1Hand.push(...drawnCards);
+        startMessage = `Nouvelle partie ! Un 7 est retourné. Joueur 1 pioche automatiquement 2 cartes !`;
+        deck = newDeck;
+      }
+    } else if (topCard.isJoker) {
+      const { newDeck, newDiscard, drawnCards } = drawCardsAutomatic(deck, [topCard], 5);
+      p1Hand.push(...drawnCards);
+      startMessage = `Nouvelle partie ! Un Joker est retourné. Joueur 1 pioche automatiquement 5 cartes !`;
+      deck = newDeck;
+    }
+    
+    const newState: GameState = { status: 'playing', player1_ready: true, player2_ready: true, current_turn: 1, player1_hand: p1Hand, player2_hand: p2Hand, deck, discard_pile: [topCard], top_card: topCard, forced_suit: null, pending_draw: 0, winner: null, message: startMessage, just_drew: false };
     await supabase.from('match_rooms').update({ game_state: newState, status: 'playing', winner_id: null }).eq('id', roomId);
   };
 
@@ -341,7 +387,7 @@ export default function MultiplayerRoomPage() {
         <div className="bg-black/60 backdrop-blur-sm rounded-xl p-3 mb-4 text-center border-2 border-yellow-400/50">
           <p className="text-white font-bold text-sm md:text-base">{gameState?.message || 'Chargement...'}</p>
           {gameState?.forced_suit && (<p className="text-yellow-400 text-xs mt-1">Couleur imposée : {SUITS_FR[gameState.forced_suit]}</p>)}
-          {gameState?.pending_draw > 0 && (<p className="text-red-400 text-xs mt-1 font-bold animate-pulse">️ OBLIGATOIRE : +{gameState.pending_draw} cartes à piocher ! (Joue un 7 pour contrer ou pioche)</p>)}
+          {gameState?.pending_draw > 0 && (<p className="text-red-400 text-xs mt-1 font-bold animate-pulse">⚠️ OBLIGATOIRE : +{gameState.pending_draw} cartes à piocher ! (Joue un 7 pour contrer ou pioche)</p>)}
           {justDrew && (<p className="text-green-400 text-xs mt-1 font-bold animate-pulse">💡 Tu viens de piocher. Joue une carte ou passe ton tour !</p>)}
         </div>
         {!gameState || gameState.status === 'waiting' ? (
@@ -357,7 +403,7 @@ export default function MultiplayerRoomPage() {
               <div className={`flex flex-col items-center p-6 rounded-xl border-2 ${opponentReady ? 'bg-green-50 border-green-400' : 'bg-gray-50 border-gray-300'}`}>
                 <div className="w-20 h-20 rounded-full bg-red-500 flex items-center justify-center text-white text-2xl font-bold mb-3 border-4 border-white"><Users className="w-10 h-10" /></div>
                 <p className="font-bold text-gray-800">{opponentName}</p>
-                <p className="text-sm text-gray-500 mb-3">{opponentReady ? '✅ Prêt' : '⏳ En attente...'}</p>
+                <p className="text-sm text-gray-500 mb-3">{opponentReady ? '✅ Prêt' : ' En attente...'}</p>
                 <div className="w-32 h-10 bg-gray-200 rounded flex items-center justify-center text-gray-400 text-sm font-bold">{opponentReady ? 'Prêt' : 'Attente'}</div>
               </div>
             </div>
