@@ -8,7 +8,7 @@ import { isPlayable } from '@/lib/game-logic';
 import { handlePlayerAction } from '@/app/game/actions';
 import { SuitChoiceDialog } from './SuitChoiceDialog';
 import { GameOverDisplay } from './GameOverDisplay';
-import { Loader2, Trophy, MessageCircle } from 'lucide-react';
+import { Loader2, Trophy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useAuth } from '@/components/AuthProvider';
@@ -27,7 +27,6 @@ const AVATARS = {
 
 export function GameBoard({ initialGameState }: { initialGameState: GameState }) {
   const { profile, userId } = useAuth();
-  // ✅ CORRECTION : utiliser les bons noms de fonctions son
   const { playCard, playVictory, playDefeat } = useSound();
   
   const playerName = profile?.pseudo || 'TOI';
@@ -56,7 +55,7 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
     }
   }, [gameState.gameMessage, toast]);
 
-  // 🌟 MODIFIÉ : Sauvegarde du score + XP + Succès + son de fin de partie
+  // 🌟 Sauvegarde du score + XP + Succès + son de fin de partie
   useEffect(() => {
     if (gameState.winner && profile && userId && !scoreSaved) {
       const saveScoreAndXp = async () => {
@@ -65,7 +64,6 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
         const cardsRemaining = isWin ? 0 : gameState.playerHand.length;
         const difficulty = gameState.difficulty || 'medium';
 
-        // 1. Sauvegarder le score
         const { error: scoreError } = await supabase
           .from('scores')
           .insert({
@@ -80,10 +78,8 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
           console.error('Erreur sauvegarde score:', scoreError);
           toast({ title: 'Erreur', description: 'Impossible de sauvegarder le score.', variant: 'destructive' });
         } else {
-          // 2. Calculer et mettre à jour l'XP et le niveau
           const xpReward = calculateXpReward(isWin, difficulty);
           const currentXp = profile.xp || 0;
-          // Empêcher les XP négatifs (minimum 0)
           const newTotalXp = Math.max(0, currentXp + xpReward);
           const levelInfo = getLevelInfo(newTotalXp);
           const newLevel = levelInfo.level;
@@ -93,7 +89,6 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
             .update({ xp: newTotalXp, level: newLevel })
             .eq('id', userId);
 
-          // 3. Récupérer les stats actuelles pour les succès
           const { data: leaderboardData } = await supabase
             .from('leaderboard')
             .select('wins, total_games')
@@ -103,7 +98,6 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
           const currentWins = leaderboardData?.wins || 0;
           const currentTotalGames = leaderboardData?.total_games || 0;
 
-          // 4. Vérifier et débloquer les succès
           const newlyUnlocked = await checkAndUnlockAchievements(userId, {
             wins: isWin ? currentWins + 1 : currentWins,
             totalGames: currentTotalGames + 1,
@@ -119,7 +113,6 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
             playDefeat();
           }
           
-          // 5. Notification si succès débloqué
           if (newlyUnlocked.length > 0) {
             toast({ 
               title: '🏆 Succès débloqué !', 
@@ -143,7 +136,7 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
     }
 
     if (jokerPendingDraw && pendingDraw > 0) {
-      setAutoDrawMessage(` Pioche automatique de ${pendingDraw} cartes (Joker)...`);
+      setAutoDrawMessage(`Pioche auto: ${pendingDraw} cartes (Joker)`);
       const timeout = setTimeout(() => {
         const currentState = gameStateRef.current;
         if (currentState.jokerPendingDraw && currentState.pendingDraw > 0 && currentState.currentPlayer === 'player') {
@@ -160,7 +153,7 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
     if (pendingDraw > 0 && !jokerPendingDraw) {
       const hasSeven = playerHand.some(c => c.rank === '7');
       if (!hasSeven) {
-        setAutoDrawMessage(`🎴 Pioche automatique de ${pendingDraw} cartes (7 cumulés)...`);
+        setAutoDrawMessage(`Pioche auto: ${pendingDraw} cartes (7 cumulés)`);
         const timeout = setTimeout(() => {
           const currentState = gameStateRef.current;
           if (currentState.pendingDraw > 0 && !currentState.jokerPendingDraw && currentState.currentPlayer === 'player') {
@@ -193,13 +186,11 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
     });
   };
 
-  // ✅ CORRECTION : playCard au lieu de playCardPlay
   const handlePlayCard = (card: GameCard) => {
     playCard();
     onAction({ type: 'PLAY_CARD', card });
   };
   
-  // ✅ CORRECTION : playCard au lieu de playCardDraw
   const handleDrawCard = () => {
     playCard();
     onAction({ type: 'DRAW_CARD' });
@@ -331,49 +322,48 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
         </div>
       </div>
 
-      {/* BULLE DE MESSAGE */}
-      <div className="absolute top-1/3 right-8 z-10 max-w-xs">
-        <div className="bg-white/95 backdrop-blur-sm rounded-2xl rounded-br-none p-4 shadow-2xl border-2 border-yellow-400 relative">
-          <MessageCircle className="absolute -top-2 -left-2 w-5 h-5 text-yellow-500 fill-yellow-500" />
-          <p className="text-gray-800 font-semibold text-sm">
-            {isPending ? (
-              <span className="flex items-center gap-2">
-                <Loader2 className="animate-spin h-4 w-4" /> L'IA réfléchit...
-              </span>
-            ) : gameMessage}
-          </p>
-          {forcedSuit && (
-            <p className="text-xs text-red-600 font-bold mt-2 bg-yellow-100 px-2 py-1 rounded">
-              Couleur : {SUITS_FR[forcedSuit]}
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* INDICATEUR DE PIOCHE AUTOMATIQUE */}
-      {autoDrawMessage && (
-        <div className="absolute bottom-36 left-1/2 -translate-x-1/2 z-30 bg-gradient-to-r from-red-600 to-red-700 text-white font-bold px-8 py-4 rounded-full border-4 border-yellow-400 shadow-2xl animate-pulse text-lg">
-          {autoDrawMessage}
-        </div>
-      )}
-
-      {/* JOUEUR EN BAS */}
-      <div className="absolute bottom-0 left-0 right-0 z-10 flex flex-col items-center pb-4">
-        <div className="relative mb-2">
-          <div className={`w-20 h-20 rounded-full border-4 ${isPlayerTurn ? 'border-yellow-400 animate-pulse' : 'border-white/50'} overflow-hidden shadow-2xl bg-gray-800`}>
+      {/* ✅ JOUEUR EN BAS AVEC MESSAGES INTÉGRÉS À CÔTÉ DU PSEUDO */}
+      <div className="absolute bottom-0 left-0 right-0 z-10 flex flex-col items-center pb-4 px-4">
+        <div className="relative mb-2 flex items-center gap-3 w-full max-w-md justify-center">
+          <div className={`w-16 h-16 md:w-20 md:h-20 rounded-full border-4 ${isPlayerTurn ? 'border-yellow-400 animate-pulse' : 'border-white/50'} overflow-hidden shadow-2xl bg-gray-800 flex-shrink-0`}>
             <img src={playerAvatar} alt={playerName} className="w-full h-full object-cover" />
           </div>
-          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full border-2 border-white shadow-lg whitespace-nowrap">
-            {playerName}
+          <div className="flex flex-col items-start min-w-0 flex-1">
+            <div className="bg-blue-600 text-white text-xs md:text-sm font-bold px-3 py-1 rounded-full border-2 border-white shadow-lg whitespace-nowrap mb-1">
+              {playerName}
+            </div>
+            
+            {/* ✅ Messages affichés à côté du pseudo (visibles même avec les pubs) */}
+            {forcedSuit && (
+              <p className="text-yellow-300 text-xs font-bold drop-shadow-md flex items-center gap-1">
+                🎯 {SUITS_FR[forcedSuit]}
+              </p>
+            )}
+            {pendingDraw > 0 && (
+              <p className="text-red-400 text-xs font-bold drop-shadow-md flex items-center gap-1">
+                ⚠️ +{pendingDraw} cartes
+              </p>
+            )}
+            {autoDrawMessage && (
+              <p className="text-green-400 text-xs font-bold drop-shadow-md flex items-center gap-1 animate-pulse">
+                💡 {autoDrawMessage}
+              </p>
+            )}
+            {!isPlayerTurn && isPending && (
+              <p className="text-gray-300 text-xs font-bold drop-shadow-md flex items-center gap-1">
+                <Loader2 className="animate-spin h-3 w-3" /> L'IA réfléchit...
+              </p>
+            )}
           </div>
+          
           {isPlayerTurn && (
-            <div className="absolute -top-1 -right-1 bg-yellow-400 rounded-full p-1 shadow-lg animate-pulse">
+            <div className="absolute -top-1 right-0 md:-right-1 bg-yellow-400 rounded-full p-1 shadow-lg animate-pulse">
               <Trophy className="w-4 h-4 text-red-700" />
             </div>
           )}
         </div>
 
-        <div className="flex justify-center items-end -space-x-4 sm:-space-x-6 md:-space-x-8 px-2 sm:px-4">
+        <div className="flex justify-center items-end -space-x-4 sm:-space-x-6 md:-space-x-8 px-2 sm:px-4 w-full overflow-x-auto pb-2">
           {sortedPlayerHand.map((card, index) => (
             <div 
               key={card.id} 
@@ -381,6 +371,7 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
                 transform: `rotate(${(index - sortedPlayerHand.length/2) * 4}deg) translateY(${Math.abs(index - sortedPlayerHand.length/2) * 2}px)`,
                 zIndex: index
               }}
+              className="flex-shrink-0"
             >
               <PlayingCard 
                 card={card} 
@@ -398,7 +389,7 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
             disabled={drawButtonDisabled}
             className="bg-gradient-to-b from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-black font-black border-b-4 border-yellow-800 shadow-lg text-lg px-8 py-6"
           >
-            {pendingDraw > 0 ? `Piocher ${pendingDraw}` : ' Piocher'}
+            {pendingDraw > 0 ? `Piocher ${pendingDraw}` : 'Piocher'}
           </Button>
           {canPlayerEndTurn && (
             <Button 

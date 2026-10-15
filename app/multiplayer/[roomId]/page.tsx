@@ -261,7 +261,6 @@ export default function MultiplayerRoomPage() {
     await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
   };
 
-  // ✅ CORRECTION : Seul le Joker fait piocher 5 cartes, pas le Valet
   const handleChooseSuit = async (suit: Suit) => {
     if (!gameState || !pendingCard) return;
     setShowSuitPicker(false);
@@ -277,7 +276,6 @@ export default function MultiplayerRoomPage() {
     let newDeck = gameState.deck;
     let newDiscard = gameState.discard_pile;
 
-    // ✅ SEUL le Joker fait piocher 5 cartes à l'adversaire
     if (pendingCard.isJoker) {
       const drawResult = drawCardsAutomatic(gameState.deck, gameState.discard_pile, 5);
       opponentHand.push(...drawResult.drawnCards);
@@ -285,7 +283,6 @@ export default function MultiplayerRoomPage() {
       newDiscard = drawResult.newDiscard;
       newMessage += `. ${opponentName} pioche automatiquement 5 cartes !`;
     }
-    // Le Valet change juste la couleur, pas de pioche
 
     const newState: GameState = {
       ...gameState,
@@ -395,12 +392,6 @@ export default function MultiplayerRoomPage() {
           <h1 className="text-xl md:text-2xl font-black text-yellow-400">⚔️ MULTIJOUER</h1>
           <div className="w-20"></div>
         </div>
-        <div className="bg-black/60 backdrop-blur-sm rounded-xl p-3 mb-4 text-center border-2 border-yellow-400/50">
-          <p className="text-white font-bold text-sm md:text-base">{gameState?.message || 'Chargement...'}</p>
-          {gameState?.forced_suit && (<p className="text-yellow-400 text-xs mt-1 font-bold">🎯 Couleur imposée : {SUITS_FR[gameState.forced_suit]}</p>)}
-          {gameState?.pending_draw > 0 && (<p className="text-red-400 text-xs mt-1 font-bold animate-pulse">⚠️ OBLIGATOIRE : +{gameState.pending_draw} cartes à piocher ! (Joue un 7 pour contrer ou pioche)</p>)}
-          {justDrew && (<p className="text-green-400 text-xs mt-1 font-bold animate-pulse">💡 Tu viens de piocher. Joue une carte ou passe ton tour !</p>)}
-        </div>
         {!gameState || gameState.status === 'waiting' ? (
           <div className="bg-white/95 rounded-2xl p-6 shadow-2xl border-2 border-yellow-400 text-center">
             <div className="flex flex-col md:flex-row items-center justify-center gap-8">
@@ -422,7 +413,7 @@ export default function MultiplayerRoomPage() {
         ) : gameState.status === 'finished' ? (
           <div className="bg-white/95 rounded-2xl p-8 shadow-2xl border-2 border-yellow-400 text-center">
             <Trophy className="w-20 h-20 mx-auto text-yellow-500 mb-4" />
-            <h2 className="text-3xl font-black mb-4">{gameState.winner === myId ? ' Tu as gagné !' : '😢 Tu as perdu...'}</h2>
+            <h2 className="text-3xl font-black mb-4">{gameState.winner === myId ? '🎉 Tu as gagné !' : '😢 Tu as perdu...'}</h2>
             <p className="text-gray-600 mb-6">Vainqueur : Joueur {gameState.winner}</p>
             <div className="space-y-3 max-w-md mx-auto">
               <Button onClick={handleNewGame} className="bg-gradient-to-b from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-black font-black border-b-4 border-yellow-800 py-6 text-lg w-full">
@@ -435,27 +426,40 @@ export default function MultiplayerRoomPage() {
           </div>
         ) : (
           <div className="space-y-4">
+            {/* Main adverse */}
             <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border-2 border-yellow-400/50">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <div className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center text-white font-bold border-2 border-white">{opponentName.charAt(0).toUpperCase()}</div>
-                  <div><p className="text-white font-bold text-sm">{opponentName}</p><p className="text-yellow-400 text-xs">{opponentHand.length} cartes</p></div>
+                  <div>
+                    <p className="text-white font-bold text-sm">{opponentName}</p>
+                    <p className="text-yellow-400 text-xs">{opponentHand.length} cartes</p>
+                  </div>
                 </div>
                 {gameState.current_turn !== myId && (<span className="bg-yellow-400 text-black text-xs font-bold px-3 py-1 rounded-full animate-pulse">Son tour</span>)}
               </div>
               <div className="flex justify-center gap-1 flex-wrap">{opponentHand.map((card, i) => (<PlayingCard key={card.id || i} isFaceDown className="w-12 h-16 md:w-16 md:h-24" />))}</div>
             </div>
+            {/* Zone centrale */}
             <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-6 border-2 border-yellow-400/50 min-h-[180px] flex items-center justify-center gap-8">
               <div className="flex flex-col items-center"><p className="text-white text-xs font-bold mb-2">DÉFAUSSE</p>{gameState.top_card ? (<PlayingCard card={gameState.top_card} className="w-20 h-28 md:w-24 md:h-32" />) : (<div className="w-20 h-28 md:w-24 md:h-32 bg-gray-700 rounded-xl border-2 border-gray-500"></div>)}</div>
               <div className="flex flex-col items-center"><p className="text-white text-xs font-bold mb-2">PIOCHE ({gameState.deck.length})</p><button onClick={handleDraw} disabled={!isMyTurn || justDrew} className="cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-transform hover:scale-105"><PlayingCard isFaceDown className="w-20 h-28 md:w-24 md:h-32" /></button></div>
             </div>
+            {/* ✅ MA MAIN AVEC MESSAGES INTÉGRÉS À CÔTÉ DU PSEUDO */}
             <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border-2 border-yellow-400/50">
               <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold border-2 border-white">{profile?.pseudo?.charAt(0).toUpperCase() || '?'}</div>
-                  <div><p className="text-white font-bold text-sm">{profile?.pseudo || 'Toi'}</p><p className="text-yellow-400 text-xs">{myHand.length} cartes</p></div>
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold border-2 border-white flex-shrink-0">{profile?.pseudo?.charAt(0).toUpperCase() || '?'}</div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-white font-bold text-sm truncate">{profile?.pseudo || 'Toi'}</p>
+                    <p className="text-yellow-400 text-xs">{myHand.length} cartes</p>
+                    {/* ✅ Messages affichés à côté du pseudo */}
+                    {gameState?.forced_suit && (<p className="text-yellow-300 text-xs font-bold mt-0.5">🎯 {SUITS_FR[gameState.forced_suit]}</p>)}
+                    {gameState?.pending_draw > 0 && (<p className="text-red-400 text-xs font-bold mt-0.5">⚠️ +{gameState.pending_draw} cartes</p>)}
+                    {justDrew && (<p className="text-green-400 text-xs font-bold mt-0.5">💡 Joue ou passe</p>)}
+                  </div>
                 </div>
-                {isMyTurn && (<span className="bg-green-400 text-black text-xs font-bold px-3 py-1 rounded-full animate-pulse">Ton tour !</span>)}
+                {isMyTurn && (<span className="bg-green-400 text-black text-xs font-bold px-3 py-1 rounded-full animate-pulse flex-shrink-0 ml-2">Ton tour !</span>)}
               </div>
               <div className="flex justify-center gap-1 flex-wrap mb-3">
                 {myHand.map((card) => {
