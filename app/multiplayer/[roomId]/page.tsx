@@ -65,11 +65,17 @@ export default function MultiplayerRoomPage() {
     return deck;
   }
 
+  // ✅ CETTE FONCTION CONTIENT DÉJÀ LA RÈGLE "MÊME COULEUR OU MÊME RANG"
   function isCardPlayable(card: GameCard, topCard: GameCard | null, forcedSuit: Suit | null, pendingDraw: number = 0): boolean {
+    // Si on doit piocher (cumul de 7), on ne peut jouer que des 7
     if (pendingDraw > 0) return card.rank === '7';
     if (!topCard) return true;
+    // Joker et Valet sont toujours jouables
     if (card.isJoker || card.rank === 'Jack') return true;
+    // Si une couleur est imposée, on doit jouer cette couleur
     if (forcedSuit) return card.suit === forcedSuit;
+    
+    // ✅ RÈGLE PRINCIPALE : Même couleur OU même rang
     const cardRank = String(card.rank || '').trim();
     const topRank = String(topCard.rank || '').trim();
     const cardSuit = String(card.suit || '').trim();
@@ -265,7 +271,7 @@ export default function MultiplayerRoomPage() {
     if (myHand.length === 0) {
       winner = myId;
       status = 'finished';
-      newMessage = ` Joueur ${myId} a gagné !`;
+      newMessage = `🎉 Joueur ${myId} a gagné !`;
     }
     
     const newState: GameState = {
@@ -318,7 +324,6 @@ export default function MultiplayerRoomPage() {
     await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
   };
 
-  // ✅ MODIFIÉ : Après avoir pioché, le joueur garde la main (just_drew = true)
   const handleDraw = async () => {
     if (!gameState || actionLocked) return;
     const myId: 1 | 2 = isPlayer1 ? 1 : 2;
@@ -330,7 +335,6 @@ export default function MultiplayerRoomPage() {
     const myHand = isPlayer1 ? [...gameState.player1_hand] : [...gameState.player2_hand];
     myHand.push(...drawnCards);
     
-    // ✅ Le joueur garde la main après avoir pioché
     const newState: GameState = {
       ...gameState,
       ...(isPlayer1 ? { player1_hand: myHand } : { player2_hand: myHand }),
@@ -338,13 +342,12 @@ export default function MultiplayerRoomPage() {
       discard_pile: newDiscard,
       pending_draw: 0,
       message: `Joueur ${myId} pioche ${cardsToDraw} carte(s). Joue une carte ou passe ton tour.`,
-      just_drew: true, // ✅ IMPORTANT : on garde la main
-      current_turn: myId, // ✅ Le tour reste au joueur qui a pioché
+      just_drew: true,
+      current_turn: myId,
     };
     await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
   };
 
-  // ✅ Passer le tour après avoir pioché
   const handlePassTurn = async () => {
     if (!gameState || actionLocked) return;
     const myId: 1 | 2 = isPlayer1 ? 1 : 2;
@@ -429,7 +432,6 @@ export default function MultiplayerRoomPage() {
     return "Joue une carte ou pioche";
   };
 
-  // ✅ Afficher le bouton "Passer mon tour" après un 10 OU après avoir pioché
   const canPassTurn = isMyTurn && (gameState?.message?.includes('Tour de l\'adversaire sauté') || justDrew);
 
   return (
@@ -507,7 +509,6 @@ export default function MultiplayerRoomPage() {
                     <div className="mt-2 bg-gray-700/90 border border-gray-500 rounded-lg px-3 py-2 shadow-lg">
                       <p className="text-white text-sm font-bold">{getInstructionMessage()}</p>
                     </div>
-                    {/* ✅ BOUTON PASSER MON TOUR - affiché après un 10 OU après avoir pioché */}
                     {canPassTurn && (
                       <Button 
                         onClick={handlePassTurn}
