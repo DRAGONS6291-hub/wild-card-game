@@ -63,14 +63,10 @@ export default function MultiplayerRoomPage() {
   }
 
   function isCardPlayable(card: GameCard, topCard: GameCard | null, forcedSuit: Suit | null, pendingDraw: number = 0): boolean {
-    if (pendingDraw > 0) {
-      return card.rank === '7';
-    }
+    if (pendingDraw > 0) return card.rank === '7';
     if (!topCard) return true;
     if (card.rank === 'Jack' || card.isJoker) return true;
-    if (forcedSuit) {
-      return card.suit === forcedSuit;
-    }
+    if (forcedSuit) return card.suit === forcedSuit;
     if (card.suit === topCard.suit) return true;
     if (card.rank === topCard.rank) return true;
     return false;
@@ -162,7 +158,6 @@ export default function MultiplayerRoomPage() {
       updateData.just_drew = false;
       
       let startMessage = 'La partie commence ! Tour du Joueur 1';
-      
       if (topCard.rank === '7') {
         const player1HasSeven = p1Hand.some(c => c.rank === '7');
         if (player1HasSeven) {
@@ -184,7 +179,6 @@ export default function MultiplayerRoomPage() {
         updateData.discard_pile = newDiscard;
         startMessage = `La partie commence ! Un Joker est retourné. Joueur 1 pioche automatiquement 5 cartes !`;
       }
-      
       updateData.message = startMessage;
     } else {
       updateData.status = 'waiting';
@@ -216,7 +210,6 @@ export default function MultiplayerRoomPage() {
       newPendingDraw += 2;
       const opponentHand = isPlayer1 ? [...gameState.player2_hand] : [...gameState.player1_hand];
       const opponentHasSeven = opponentHand.some(c => c.rank === '7');
-      
       if (opponentHasSeven) {
         newMessage = `7 joué ! +${newPendingDraw} cartes. ${opponentName} a un 7 pour contrer !`;
         newCurrentTurn = nextTurn;
@@ -226,20 +219,7 @@ export default function MultiplayerRoomPage() {
         newMessage = `7 joué ! ${opponentName} n'a pas de 7, pioche automatiquement ${newPendingDraw} cartes !`;
         newCurrentTurn = myId;
         newPendingDraw = 0;
-        
-        newState = {
-          ...gameState,
-          ...(isPlayer1 ? { player1_hand: myHand, player2_hand: opponentHand } : { player1_hand: opponentHand, player2_hand: myHand }),
-          discard_pile: newDiscard2,
-          top_card: card,
-          current_turn: newCurrentTurn,
-          forced_suit: newForcedSuit,
-          pending_draw: newPendingDraw,
-          winner: gameState.winner,
-          status: gameState.status,
-          message: newMessage,
-          just_drew: false,
-        };
+        newState = { ...gameState, ...(isPlayer1 ? { player1_hand: myHand, player2_hand: opponentHand } : { player1_hand: opponentHand, player2_hand: myHand }), discard_pile: newDiscard2, top_card: card, current_turn: newCurrentTurn, forced_suit: newForcedSuit, pending_draw: newPendingDraw, winner: gameState.winner, status: gameState.status, message: newMessage, just_drew: false };
         await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
         return;
       }
@@ -264,14 +244,11 @@ export default function MultiplayerRoomPage() {
   const handleChooseSuit = async (suit: Suit) => {
     if (!gameState || !pendingCard) return;
     setShowSuitPicker(false);
-    
     const myId: 1 | 2 = isPlayer1 ? 1 : 2;
     const opponentId: 1 | 2 = myId === 1 ? 2 : 1;
     const nextTurn: 1 | 2 = opponentId;
-    
     const myHand = isPlayer1 ? [...gameState.player1_hand] : [...gameState.player2_hand];
     const opponentHand = isPlayer1 ? [...gameState.player2_hand] : [...gameState.player1_hand];
-    
     let newMessage = `Joueur ${myId} choisit ${SUITS_FR[suit]}`;
     let newDeck = gameState.deck;
     let newDiscard = gameState.discard_pile;
@@ -284,18 +261,7 @@ export default function MultiplayerRoomPage() {
       newMessage += `. ${opponentName} pioche automatiquement 5 cartes !`;
     }
 
-    const newState: GameState = {
-      ...gameState,
-      ...(isPlayer1 ? { player1_hand: myHand, player2_hand: opponentHand } : { player1_hand: opponentHand, player2_hand: myHand }),
-      deck: newDeck,
-      discard_pile: newDiscard,
-      forced_suit: suit,
-      current_turn: nextTurn,
-      pending_draw: 0,
-      message: newMessage,
-      just_drew: false,
-    };
-    
+    const newState: GameState = { ...gameState, ...(isPlayer1 ? { player1_hand: myHand, player2_hand: opponentHand } : { player1_hand: opponentHand, player2_hand: myHand }), deck: newDeck, discard_pile: newDiscard, forced_suit: suit, current_turn: nextTurn, pending_draw: 0, message: newMessage, just_drew: false };
     setPendingCard(null);
     await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
   };
@@ -310,15 +276,7 @@ export default function MultiplayerRoomPage() {
     const myHand = isPlayer1 ? [...gameState.player1_hand] : [...gameState.player2_hand];
     myHand.push(...drawnCards);
     const nextTurn: 1 | 2 = myId === 1 ? 2 : 1;
-    const newState: GameState = {
-      ...gameState,
-      ...(isPlayer1 ? { player1_hand: myHand } : { player2_hand: myHand }),
-      deck: newDeck,
-      discard_pile: newDiscard,
-      pending_draw: 0,
-      message: `Joueur ${myId} pioche ${cardsToDraw} carte(s). Tu peux jouer ou passer ton tour.`,
-      just_drew: true,
-    };
+    const newState: GameState = { ...gameState, ...(isPlayer1 ? { player1_hand: myHand } : { player2_hand: myHand }), deck: newDeck, discard_pile: newDiscard, pending_draw: 0, message: `Joueur ${myId} pioche ${cardsToDraw} carte(s). Tu peux jouer ou passer ton tour.`, just_drew: true };
     await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
   };
 
@@ -328,12 +286,7 @@ export default function MultiplayerRoomPage() {
     if (gameState.current_turn !== myId) return;
     setActionLocked(true);
     const nextTurn: 1 | 2 = myId === 1 ? 2 : 1;
-    const newState: GameState = {
-      ...gameState,
-      current_turn: nextTurn,
-      message: `Joueur ${myId} passe son tour. Au tour du Joueur ${nextTurn} !`,
-      just_drew: false,
-    };
+    const newState: GameState = { ...gameState, current_turn: nextTurn, message: `Joueur ${myId} passe son tour. Au tour du Joueur ${nextTurn} !`, just_drew: false };
     await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
   };
 
@@ -344,37 +297,28 @@ export default function MultiplayerRoomPage() {
     const p1Hand = deck.splice(0, 7);
     const p2Hand = deck.splice(0, 7);
     const topCard = deck.shift()!;
-    
     let startMessage = 'Nouvelle partie ! Tour du Joueur 1';
     let pendingDraw = 0;
     let currentDeck = deck;
-    
     if (topCard.rank === '7') {
       const player1HasSeven = p1Hand.some(c => c.rank === '7');
-      if (player1HasSeven) {
-        startMessage = `Nouvelle partie ! Un 7 est retourné. Joueur 1 a un 7 pour contrer !`;
-        pendingDraw = 2;
-      } else {
+      if (player1HasSeven) { startMessage = `Nouvelle partie ! Un 7 est retourné. Joueur 1 a un 7 pour contrer !`; pendingDraw = 2; } 
+      else {
         const { newDeck, newDiscard, drawnCards } = drawCardsAutomatic(deck, [topCard], 2);
-        p1Hand.push(...drawnCards);
-        startMessage = `Nouvelle partie ! Un 7 est retourné. Joueur 1 pioche automatiquement 2 cartes !`;
-        currentDeck = newDeck;
+        p1Hand.push(...drawnCards); startMessage = `Nouvelle partie ! Un 7 est retourné. Joueur 1 pioche automatiquement 2 cartes !`; currentDeck = newDeck;
       }
     } else if (topCard.isJoker) {
       const { newDeck, newDiscard, drawnCards } = drawCardsAutomatic(deck, [topCard], 5);
-      p1Hand.push(...drawnCards);
-      startMessage = `Nouvelle partie ! Un Joker est retourné. Joueur 1 pioche automatiquement 5 cartes !`;
-      currentDeck = newDeck;
+      p1Hand.push(...drawnCards); startMessage = `Nouvelle partie ! Un Joker est retourné. Joueur 1 pioche automatiquement 5 cartes !`; currentDeck = newDeck;
     }
-    
     const newState: GameState = { status: 'playing', player1_ready: true, player2_ready: true, current_turn: 1, player1_hand: p1Hand, player2_hand: p2Hand, deck: currentDeck, discard_pile: [topCard], top_card: topCard, forced_suit: null, pending_draw: pendingDraw, winner: null, message: startMessage, just_drew: false };
     await supabase.from('match_rooms').update({ game_state: newState, status: 'playing', winner_id: null }).eq('id', roomId);
   };
 
   const handleQuit = () => { router.push('/menu'); };
 
-  if (loading) { return (<div className="min-h-screen flex items-center justify-center bg-[radial-gradient(ellipse_at_center,_#ff6b35_0%,_#d62828_40%,_#6a040f_100%)]"><Loader2 className="w-12 h-12 text-yellow-400 animate-spin" /></div>); }
-  if (!room) { return (<div className="min-h-screen flex items-center justify-center bg-[radial-gradient(ellipse_at_center,_#ff6b35_0%,_#d62828_40%,_#6a040f_100%)]"><p className="text-white text-xl font-bold">Salle introuvable</p></div>); }
+  if (loading) return <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(ellipse_at_center,_#ff6b35_0%,_#d62828_40%,_#6a040f_100%)]"><Loader2 className="w-12 h-12 text-yellow-400 animate-spin" /></div>;
+  if (!room) return <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(ellipse_at_center,_#ff6b35_0%,_#d62828_40%,_#6a040f_100%)]"><p className="text-white text-xl font-bold">Salle introuvable</p></div>;
 
   const myId: 1 | 2 = isPlayer1 ? 1 : 2;
   const myHand = gameState ? (isPlayer1 ? gameState.player1_hand : gameState.player2_hand) : [];
@@ -392,6 +336,7 @@ export default function MultiplayerRoomPage() {
           <h1 className="text-xl md:text-2xl font-black text-yellow-400">⚔️ MULTIJOUER</h1>
           <div className="w-20"></div>
         </div>
+        
         {!gameState || gameState.status === 'waiting' ? (
           <div className="bg-white/95 rounded-2xl p-6 shadow-2xl border-2 border-yellow-400 text-center">
             <div className="flex flex-col md:flex-row items-center justify-center gap-8">
@@ -416,55 +361,66 @@ export default function MultiplayerRoomPage() {
             <h2 className="text-3xl font-black mb-4">{gameState.winner === myId ? '🎉 Tu as gagné !' : '😢 Tu as perdu...'}</h2>
             <p className="text-gray-600 mb-6">Vainqueur : Joueur {gameState.winner}</p>
             <div className="space-y-3 max-w-md mx-auto">
-              <Button onClick={handleNewGame} className="bg-gradient-to-b from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-black font-black border-b-4 border-yellow-800 py-6 text-lg w-full">
-                <Sparkles className="w-5 h-5 mr-2" /> Nouvelle partie
-              </Button>
-              <Button onClick={handleQuit} variant="outline" className="w-full py-6 text-lg font-bold border-2 border-gray-300 text-gray-700 hover:bg-gray-100 hover:border-gray-400">
-                <Home className="w-5 h-5 mr-2" /> Retour au menu
-              </Button>
+              <Button onClick={handleNewGame} className="bg-gradient-to-b from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-black font-black border-b-4 border-yellow-800 py-6 text-lg w-full"><Sparkles className="w-5 h-5 mr-2" /> Nouvelle partie</Button>
+              <Button onClick={handleQuit} variant="outline" className="w-full py-6 text-lg font-bold border-2 border-gray-300 text-gray-700 hover:bg-gray-100 hover:border-gray-400"><Home className="w-5 h-5 mr-2" /> Retour au menu</Button>
             </div>
           </div>
         ) : (
           <div className="space-y-4">
-            {/* Main adverse */}
             <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border-2 border-yellow-400/50">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <div className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center text-white font-bold border-2 border-white">{opponentName.charAt(0).toUpperCase()}</div>
-                  <div>
-                    <p className="text-white font-bold text-sm">{opponentName}</p>
-                    <p className="text-yellow-400 text-xs">{opponentHand.length} cartes</p>
-                  </div>
+                  <div><p className="text-white font-bold text-sm">{opponentName}</p><p className="text-yellow-400 text-xs">{opponentHand.length} cartes</p></div>
                 </div>
-                {gameState.current_turn !== myId && (<span className="bg-yellow-400 text-black text-xs font-bold px-3 py-1 rounded-full animate-pulse">Son tour</span>)}
+                {gameState.current_turn !== myId && <span className="bg-yellow-400 text-black text-xs font-bold px-3 py-1 rounded-full animate-pulse">Son tour</span>}
               </div>
-              <div className="flex justify-center gap-1 flex-wrap">{opponentHand.map((card, i) => (<PlayingCard key={card.id || i} isFaceDown className="w-12 h-16 md:w-16 md:h-24" />))}</div>
+              <div className="flex justify-center gap-1 flex-wrap">{opponentHand.map((card, i) => <PlayingCard key={card.id || i} isFaceDown className="w-12 h-16 md:w-16 md:h-24" />)}</div>
             </div>
-            {/* Zone centrale */}
+            
             <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-6 border-2 border-yellow-400/50 min-h-[180px] flex items-center justify-center gap-8">
-              <div className="flex flex-col items-center"><p className="text-white text-xs font-bold mb-2">DÉFAUSSE</p>{gameState.top_card ? (<PlayingCard card={gameState.top_card} className="w-20 h-28 md:w-24 md:h-32" />) : (<div className="w-20 h-28 md:w-24 md:h-32 bg-gray-700 rounded-xl border-2 border-gray-500"></div>)}</div>
+              <div className="flex flex-col items-center"><p className="text-white text-xs font-bold mb-2">DÉFAUSSE</p>{gameState.top_card ? <PlayingCard card={gameState.top_card} className="w-20 h-28 md:w-24 md:h-32" /> : <div className="w-20 h-28 md:w-24 md:h-32 bg-gray-700 rounded-xl border-2 border-gray-500"></div>}</div>
               <div className="flex flex-col items-center"><p className="text-white text-xs font-bold mb-2">PIOCHE ({gameState.deck.length})</p><button onClick={handleDraw} disabled={!isMyTurn || justDrew} className="cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-transform hover:scale-105"><PlayingCard isFaceDown className="w-20 h-28 md:w-24 md:h-32" /></button></div>
             </div>
-            {/* ✅ MA MAIN AVEC MESSAGES INTÉGRÉS À CÔTÉ DU PSEUDO */}
+
+            {/* ✅ MA MAIN AVEC BADGES TRÈS VISIBLES À CÔTÉ DU PSEUDO */}
             <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border-2 border-yellow-400/50">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold border-2 border-white flex-shrink-0">{profile?.pseudo?.charAt(0).toUpperCase() || '?'}</div>
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-3 gap-3">
+                <div className="flex items-center gap-3 flex-1 min-w-0 w-full">
+                  <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center text-white text-lg font-bold border-2 border-white flex-shrink-0">
+                    {profile?.pseudo?.charAt(0).toUpperCase() || '?'}
+                  </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-white font-bold text-sm truncate">{profile?.pseudo || 'Toi'}</p>
-                    <p className="text-yellow-400 text-xs">{myHand.length} cartes</p>
-                    {/* ✅ Messages affichés à côté du pseudo */}
-                    {gameState?.forced_suit && (<p className="text-yellow-300 text-xs font-bold mt-0.5">🎯 {SUITS_FR[gameState.forced_suit]}</p>)}
-                    {gameState?.pending_draw > 0 && (<p className="text-red-400 text-xs font-bold mt-0.5">⚠️ +{gameState.pending_draw} cartes</p>)}
-                    {justDrew && (<p className="text-green-400 text-xs font-bold mt-0.5">💡 Joue ou passe</p>)}
+                    <p className="text-white font-bold text-base truncate">{profile?.pseudo || 'Toi'}</p>
+                    <p className="text-yellow-400 text-sm font-semibold">{myHand.length} cartes</p>
+                    
+                    {/* ✅ BADGES SOLIDES ET VISIBLES */}
+                    <div className="flex flex-wrap gap-2 mt-1.5">
+                      {gameState?.forced_suit && (
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-yellow-400 text-black border border-yellow-600 shadow-sm">
+                          🎯 {SUITS_FR[gameState.forced_suit]}
+                        </span>
+                      )}
+                      {gameState?.pending_draw > 0 && (
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-red-500 text-white border border-red-700 shadow-sm animate-pulse">
+                          ⚠️ +{gameState.pending_draw} cartes
+                        </span>
+                      )}
+                      {justDrew && (
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-green-500 text-white border border-green-700 shadow-sm">
+                          💡 Joue ou passe
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
-                {isMyTurn && (<span className="bg-green-400 text-black text-xs font-bold px-3 py-1 rounded-full animate-pulse flex-shrink-0 ml-2">Ton tour !</span>)}
+                {isMyTurn && <span className="bg-green-400 text-black text-xs font-bold px-3 py-1.5 rounded-full animate-pulse flex-shrink-0">Ton tour !</span>}
               </div>
+              
               <div className="flex justify-center gap-1 flex-wrap mb-3">
                 {myHand.map((card) => {
                   const playable = isMyTurn && isCardPlayable(card, gameState.top_card, gameState.forced_suit, gameState.pending_draw);
-                  return (<PlayingCard key={card.id} card={card} isPlayable={playable} onPlay={handlePlayCard} className="w-14 h-20 md:w-20 md:h-28" />);
+                  return <PlayingCard key={card.id} card={card} isPlayable={playable} onPlay={handlePlayCard} className="w-14 h-20 md:w-20 md:h-28" />;
                 })}
               </div>
               {justDrew && (
@@ -477,13 +433,12 @@ export default function MultiplayerRoomPage() {
             </div>
           </div>
         )}
+        
         {showSuitPicker && (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
               <h3 className="text-xl font-bold text-center mb-4">Choisis une couleur</h3>
-              <p className="text-sm text-gray-600 text-center mb-4">
-                {pendingCard?.isJoker ? "L'adversaire recevra 5 cartes !" : "L'adversaire devra jouer cette couleur !"}
-              </p>
+              <p className="text-sm text-gray-600 text-center mb-4">{pendingCard?.isJoker ? "L'adversaire recevra 5 cartes !" : "L'adversaire devra jouer cette couleur !"}</p>
               <div className="grid grid-cols-2 gap-3">{(['Hearts', 'Diamonds', 'Clubs', 'Spades'] as Suit[]).map((suit) => { const count = myHand.filter(card => card.suit === suit).length; return (<button key={suit} onClick={() => handleChooseSuit(suit)} className={`p-4 rounded-xl font-bold text-white border-4 transition-transform hover:scale-105 relative ${suit === 'Hearts' ? 'bg-red-500 border-red-700' : suit === 'Diamonds' ? 'bg-blue-500 border-blue-700' : suit === 'Clubs' ? 'bg-green-600 border-green-800' : 'bg-gray-800 border-gray-900'}`}><div className="text-lg">{SUITS_FR[suit]}</div><div className="text-sm mt-1 opacity-90">{count} carte{count !== 1 ? 's' : ''}</div></button>); })}</div>
             </div>
           </div>
