@@ -38,10 +38,14 @@ export default function MultiplayerRoomPage() {
   const [opponentReady, setOpponentReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [opponentName, setOpponentName] = useState('Adversaire');
+  const [opponentAvatar, setOpponentAvatar] = useState(''); // ✅ Avatar de l'adversaire
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [showSuitPicker, setShowSuitPicker] = useState(false);
   const [pendingCard, setPendingCard] = useState<GameCard | null>(null);
   const [actionLocked, setActionLocked] = useState(false);
+
+  // ✅ Avatar du joueur connecté (avec fallback sur pravatar)
+  const playerAvatar = profile?.avatar_url || `https://i.pravatar.cc/150?u=${userId}`;
 
   function createShuffledDeck(): GameCard[] {
     const suits: Suit[] = ['Hearts', 'Diamonds', 'Clubs', 'Spades'];
@@ -101,8 +105,16 @@ export default function MultiplayerRoomPage() {
       setIsPlayer1(p1);
       const opponentId = p1 ? data.player2_id : data.player1_id;
       if (opponentId) {
-        const { data: profileData } = await supabase.from('profiles').select('pseudo').eq('id', opponentId).single();
-        if (profileData) setOpponentName(profileData.pseudo);
+        // ✅ Récupérer le pseudo ET l'avatar de l'adversaire
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('pseudo, avatar_url')
+          .eq('id', opponentId)
+          .single();
+        if (profileData) {
+          setOpponentName(profileData.pseudo);
+          setOpponentAvatar(profileData.avatar_url || `https://i.pravatar.cc/150?u=${opponentId}`);
+        }
       }
       if (data.game_state) {
         setGameState(data.game_state);
@@ -189,7 +201,6 @@ export default function MultiplayerRoomPage() {
     await supabase.from('match_rooms').update({ game_state: updateData }).eq('id', roomId);
   };
 
-  // ✅ LOGIQUE DU 7 CORRIGÉE
   const handlePlayCard = async (card: GameCard) => {
     if (!gameState || actionLocked) return;
     const myId: 1 | 2 = isPlayer1 ? 1 : 2;
@@ -208,11 +219,10 @@ export default function MultiplayerRoomPage() {
     let newForcedSuit = gameState.forced_suit;
     let newCurrentTurn = nextTurn;
 
-    // ✅ CAS 1 : On joue un 7
     if (card.rank === '7') {
-      newPendingDraw += 2; // Cumul : +2 cartes
+      newPendingDraw += 2;
       newMessage = `7 joué ! +${newPendingDraw} cartes à piocher. ${opponentName} doit jouer un 7 ou piocher !`;
-      newCurrentTurn = nextTurn; // ✅ Le tour passe TOUJOURS à l'adversaire
+      newCurrentTurn = nextTurn;
       
       const newState: GameState = {
         ...gameState,
@@ -228,16 +238,14 @@ export default function MultiplayerRoomPage() {
         just_drew: false,
       };
       await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
-      return; // ✅ On sort immédiatement
+      return;
     }
     
-    // ✅ CAS 2 : On joue un 10
     if (card.rank === '10') {
       newMessage = '10 joué ! Tour de l\'adversaire sauté';
-      newCurrentTurn = myId; // On garde le tour
+      newCurrentTurn = myId;
     }
     
-    // ✅ CAS 3 : On joue un Valet ou Joker
     if (card.rank === 'Jack' || card.isJoker) {
       setPendingCard(card);
       setShowSuitPicker(true);
@@ -254,7 +262,6 @@ export default function MultiplayerRoomPage() {
       return;
     }
 
-    // ✅ CAS 4 : Carte normale
     let winner = gameState.winner;
     let status = gameState.status;
     if (myHand.length === 0) {
@@ -283,8 +290,7 @@ export default function MultiplayerRoomPage() {
     if (!gameState || !pendingCard) return;
     setShowSuitPicker(false);
     const myId: 1 | 2 = isPlayer1 ? 1 : 2;
-    const opponentId: 1 | 2 = myId === 1 ? 2 : 1;
-    const nextTurn: 1 | 2 = opponentId;
+    const nextTurn: 1 | 2 = myId === 1 ? 2 : 1;
     const myHand = isPlayer1 ? [...gameState.player1_hand] : [...gameState.player2_hand];
     const opponentHand = isPlayer1 ? [...gameState.player2_hand] : [...gameState.player1_hand];
     let newMessage = `Joueur ${myId} choisit ${SUITS_FR[suit]}`;
@@ -314,7 +320,6 @@ export default function MultiplayerRoomPage() {
     await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
   };
 
-  // ✅ PIOCHE : quand pending_draw > 0, on pioche automatiquement les cartes cumulées
   const handleDraw = async () => {
     if (!gameState || actionLocked) return;
     const myId: 1 | 2 = isPlayer1 ? 1 : 2;
@@ -332,10 +337,10 @@ export default function MultiplayerRoomPage() {
       ...(isPlayer1 ? { player1_hand: myHand } : { player2_hand: myHand }),
       deck: newDeck,
       discard_pile: newDiscard,
-      pending_draw: 0, // ✅ Reset après pioche
+      pending_draw: 0,
       message: `Joueur ${myId} pioche ${cardsToDraw} carte(s).`,
       just_drew: false,
-      current_turn: nextTurn, // ✅ Le tour passe après pioche
+      current_turn: nextTurn,
     };
     await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
   };
@@ -439,14 +444,20 @@ export default function MultiplayerRoomPage() {
           <div className="bg-white/95 rounded-2xl p-6 shadow-2xl border-2 border-yellow-400 text-center">
             <div className="flex flex-col md:flex-row items-center justify-center gap-8">
               <div className={`flex flex-col items-center p-6 rounded-xl border-2 ${isReady ? 'bg-green-50 border-green-400' : 'bg-gray-50 border-gray-300'}`}>
-                <div className="w-20 h-20 rounded-full bg-blue-500 flex items-center justify-center text-white text-2xl font-bold mb-3 border-4 border-white">{profile?.pseudo?.charAt(0).toUpperCase() || '?'}</div>
+                {/* ✅ Avatar du joueur connecté */}
+                <div className="w-20 h-20 rounded-full border-4 border-white overflow-hidden shadow-2xl bg-gray-200 mb-3">
+                  <img src={playerAvatar} alt={profile?.pseudo || 'Toi'} className="w-full h-full object-cover" />
+                </div>
                 <p className="font-bold text-gray-800">{profile?.pseudo || 'Toi'}</p>
                 <p className="text-sm text-gray-500 mb-3">{isReady ? '✅ Prêt' : '❌ Pas prêt'}</p>
                 <Button onClick={handleReady} className={isReady ? 'bg-gray-400' : 'bg-green-500 hover:bg-green-600'}>{isReady ? 'Annuler' : 'Je suis prêt !'}</Button>
               </div>
               <div className="text-4xl font-black text-yellow-500">VS</div>
               <div className={`flex flex-col items-center p-6 rounded-xl border-2 ${opponentReady ? 'bg-green-50 border-green-400' : 'bg-gray-50 border-gray-300'}`}>
-                <div className="w-20 h-20 rounded-full bg-red-500 flex items-center justify-center text-white text-2xl font-bold mb-3 border-4 border-white"><Users className="w-10 h-10" /></div>
+                {/* ✅ Avatar de l'adversaire */}
+                <div className="w-20 h-20 rounded-full border-4 border-white overflow-hidden shadow-2xl bg-gray-200 mb-3">
+                  <img src={opponentAvatar} alt={opponentName} className="w-full h-full object-cover" />
+                </div>
                 <p className="font-bold text-gray-800">{opponentName}</p>
                 <p className="text-sm text-gray-500 mb-3">{opponentReady ? '✅ Prêt' : '⏳ En attente...'}</p>
                 <div className="w-32 h-10 bg-gray-200 rounded flex items-center justify-center text-gray-400 text-sm font-bold">{opponentReady ? 'Prêt' : 'Attente'}</div>
@@ -465,10 +476,13 @@ export default function MultiplayerRoomPage() {
           </div>
         ) : (
           <div className="space-y-4">
+            {/* ✅ Main adverse avec avatar */}
             <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border-2 border-yellow-400/50">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <div className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center text-white font-bold border-2 border-white">{opponentName.charAt(0).toUpperCase()}</div>
+                  <div className="w-10 h-10 rounded-full border-2 border-white overflow-hidden shadow-lg bg-gray-200 flex-shrink-0">
+                    <img src={opponentAvatar} alt={opponentName} className="w-full h-full object-cover" />
+                  </div>
                   <div><p className="text-white font-bold text-sm">{opponentName}</p><p className="text-yellow-400 text-xs">{opponentHand.length} cartes</p></div>
                 </div>
                 {gameState.current_turn !== myId && <span className="bg-yellow-400 text-black text-xs font-bold px-3 py-1 rounded-full animate-pulse">Son tour</span>}
@@ -481,11 +495,13 @@ export default function MultiplayerRoomPage() {
               <div className="flex flex-col items-center"><p className="text-white text-xs font-bold mb-2">PIOCHE ({gameState.deck.length})</p><button onClick={handleDraw} disabled={!isMyTurn || justDrew} className="cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-transform hover:scale-105"><PlayingCard isFaceDown className="w-20 h-28 md:w-24 md:h-32" /></button></div>
             </div>
 
+            {/* ✅ Ma main avec mon avatar */}
             <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border-2 border-yellow-400/50">
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-3 gap-3">
                 <div className="flex items-center gap-3 flex-1 min-w-0 w-full">
-                  <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center text-white text-lg font-bold border-2 border-white flex-shrink-0">
-                    {profile?.pseudo?.charAt(0).toUpperCase() || '?'}
+                  {/* ✅ Mon avatar */}
+                  <div className="w-12 h-12 rounded-full border-2 border-white overflow-hidden shadow-lg bg-gray-200 flex-shrink-0">
+                    <img src={playerAvatar} alt={profile?.pseudo || 'Toi'} className="w-full h-full object-cover" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-white font-bold text-base truncate">{profile?.pseudo || 'Toi'}</p>
