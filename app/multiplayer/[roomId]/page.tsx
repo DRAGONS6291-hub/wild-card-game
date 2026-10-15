@@ -189,7 +189,7 @@ export default function MultiplayerRoomPage() {
     await supabase.from('match_rooms').update({ game_state: updateData }).eq('id', roomId);
   };
 
-  // ✅ CORRECTION : Logique du 7 corrigée
+  // ✅ CORRECTION : Logique du 7 complètement restructurée
   const handlePlayCard = async (card: GameCard) => {
     if (!gameState || actionLocked) return;
     const myId: 1 | 2 = isPlayer1 ? 1 : 2;
@@ -206,9 +206,9 @@ export default function MultiplayerRoomPage() {
     let newMessage = `Joueur ${myId} joue ${card.rank}`;
     let newPendingDraw = gameState.pending_draw;
     let newForcedSuit = gameState.forced_suit;
-    let newCurrentTurn = nextTurn; // Par défaut, on passe le tour
-    let newState: GameState;
+    let newCurrentTurn = nextTurn;
 
+    // ✅ CAS 1 : On joue un 7
     if (card.rank === '7') {
       newPendingDraw += 2;
       const opponentHand = isPlayer1 ? [...gameState.player2_hand] : [...gameState.player1_hand];
@@ -218,15 +218,32 @@ export default function MultiplayerRoomPage() {
         // ✅ L'adversaire a un 7 : le tour passe à l'adversaire
         newMessage = `7 joué ! +${newPendingDraw} cartes. ${opponentName} doit jouer un 7 ou piocher !`;
         newCurrentTurn = nextTurn; // Le tour passe à l'adversaire
+        
+        // ✅ Sauvegarder et RETOURNER immédiatement
+        const newState: GameState = {
+          ...gameState,
+          ...(isPlayer1 ? { player1_hand: myHand } : { player2_hand: myHand }),
+          discard_pile: newDiscard,
+          top_card: card,
+          current_turn: newCurrentTurn,
+          forced_suit: newForcedSuit,
+          pending_draw: newPendingDraw,
+          winner: gameState.winner,
+          status: gameState.status,
+          message: newMessage,
+          just_drew: false,
+        };
+        await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
+        return; // ✅ IMPORTANT : on sort de la fonction
       } else {
         // ✅ L'adversaire n'a pas de 7 : il pioche automatiquement, on garde le tour
         const { newDeck, newDiscard: newDiscard2, drawnCards } = drawCardsAutomatic(gameState.deck, newDiscard, newPendingDraw);
         opponentHand.push(...drawnCards);
         newMessage = `7 joué ! ${opponentName} n'a pas de 7, pioche automatiquement ${newPendingDraw} cartes !`;
-        newCurrentTurn = myId; // On garde le tour car l'adversaire a "passé"
+        newCurrentTurn = myId; // On garde le tour
         newPendingDraw = 0;
         
-        newState = {
+        const newState: GameState = {
           ...gameState,
           ...(isPlayer1 ? { player1_hand: myHand, player2_hand: opponentHand } : { player1_hand: opponentHand, player2_hand: myHand }),
           discard_pile: newDiscard2,
@@ -240,23 +257,55 @@ export default function MultiplayerRoomPage() {
           just_drew: false,
         };
         await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
-        return;
+        return; // ✅ IMPORTANT : on sort de la fonction
       }
-    } else if (card.rank === '10') {
+    }
+    
+    // ✅ CAS 2 : On joue un 10
+    if (card.rank === '10') {
       newMessage = '10 joué ! Tour de l\'adversaire sauté';
       newCurrentTurn = myId; // On garde le tour
-    } else if (card.rank === 'Jack' || card.isJoker) {
+    }
+    
+    // ✅ CAS 3 : On joue un Valet ou Joker
+    if (card.rank === 'Jack' || card.isJoker) {
       setPendingCard(card);
       setShowSuitPicker(true);
-      const partialState = { ...gameState, ...(isPlayer1 ? { player1_hand: myHand } : { player2_hand: myHand }), discard_pile: newDiscard, top_card: card, pending_draw: newPendingDraw, message: newMessage + ' - Choisis une couleur...', just_drew: false };
+      const partialState = {
+        ...gameState,
+        ...(isPlayer1 ? { player1_hand: myHand } : { player2_hand: myHand }),
+        discard_pile: newDiscard,
+        top_card: card,
+        pending_draw: newPendingDraw,
+        message: newMessage + ' - Choisis une couleur...',
+        just_drew: false,
+      };
       await supabase.from('match_rooms').update({ game_state: partialState }).eq('id', roomId);
-      return;
+      return; // ✅ IMPORTANT : on sort de la fonction
     }
 
+    // ✅ CAS 4 : Carte normale
     let winner = gameState.winner;
     let status = gameState.status;
-    if (myHand.length === 0) { winner = myId; status = 'finished'; newMessage = ` Joueur ${myId} a gagné !`; }
-    newState = { ...gameState, ...(isPlayer1 ? { player1_hand: myHand } : { player2_hand: myHand }), discard_pile: newDiscard, top_card: card, current_turn: winner ? gameState.current_turn : newCurrentTurn, forced_suit: newForcedSuit, pending_draw: newPendingDraw, winner, status, message: newMessage, just_drew: false };
+    if (myHand.length === 0) {
+      winner = myId;
+      status = 'finished';
+      newMessage = `🎉 Joueur ${myId} a gagné !`;
+    }
+    
+    const newState: GameState = {
+      ...gameState,
+      ...(isPlayer1 ? { player1_hand: myHand } : { player2_hand: myHand }),
+      discard_pile: newDiscard,
+      top_card: card,
+      current_turn: winner ? gameState.current_turn : newCurrentTurn,
+      forced_suit: newForcedSuit,
+      pending_draw: newPendingDraw,
+      winner,
+      status,
+      message: newMessage,
+      just_drew: false,
+    };
     await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
   };
 
@@ -280,7 +329,17 @@ export default function MultiplayerRoomPage() {
       newMessage += `. ${opponentName} pioche automatiquement 5 cartes !`;
     }
 
-    const newState: GameState = { ...gameState, ...(isPlayer1 ? { player1_hand: myHand, player2_hand: opponentHand } : { player1_hand: opponentHand, player2_hand: myHand }), deck: newDeck, discard_pile: newDiscard, forced_suit: suit, current_turn: nextTurn, pending_draw: 0, message: newMessage, just_drew: false };
+    const newState: GameState = {
+      ...gameState,
+      ...(isPlayer1 ? { player1_hand: myHand, player2_hand: opponentHand } : { player1_hand: opponentHand, player2_hand: myHand }),
+      deck: newDeck,
+      discard_pile: newDiscard,
+      forced_suit: suit,
+      current_turn: nextTurn,
+      pending_draw: 0,
+      message: newMessage,
+      just_drew: false,
+    };
     setPendingCard(null);
     await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
   };
@@ -295,7 +354,16 @@ export default function MultiplayerRoomPage() {
     const myHand = isPlayer1 ? [...gameState.player1_hand] : [...gameState.player2_hand];
     myHand.push(...drawnCards);
     const nextTurn: 1 | 2 = myId === 1 ? 2 : 1;
-    const newState: GameState = { ...gameState, ...(isPlayer1 ? { player1_hand: myHand } : { player2_hand: myHand }), deck: newDeck, discard_pile: newDiscard, pending_draw: 0, message: `Joueur ${myId} pioche ${cardsToDraw} carte(s).`, just_drew: false, current_turn: nextTurn };
+    const newState: GameState = {
+      ...gameState,
+      ...(isPlayer1 ? { player1_hand: myHand } : { player2_hand: myHand }),
+      deck: newDeck,
+      discard_pile: newDiscard,
+      pending_draw: 0,
+      message: `Joueur ${myId} pioche ${cardsToDraw} carte(s).`,
+      just_drew: false,
+      current_turn: nextTurn,
+    };
     await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
   };
 
@@ -305,7 +373,12 @@ export default function MultiplayerRoomPage() {
     if (gameState.current_turn !== myId) return;
     setActionLocked(true);
     const nextTurn: 1 | 2 = myId === 1 ? 2 : 1;
-    const newState: GameState = { ...gameState, current_turn: nextTurn, message: `Joueur ${myId} passe son tour. Au tour du Joueur ${nextTurn} !`, just_drew: false };
+    const newState: GameState = {
+      ...gameState,
+      current_turn: nextTurn,
+      message: `Joueur ${myId} passe son tour. Au tour du Joueur ${nextTurn} !`,
+      just_drew: false,
+    };
     await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
   };
 
@@ -321,16 +394,37 @@ export default function MultiplayerRoomPage() {
     let currentDeck = deck;
     if (topCard.rank === '7') {
       const player1HasSeven = p1Hand.some(c => c.rank === '7');
-      if (player1HasSeven) { startMessage = `Nouvelle partie ! Un 7 est retourné. Joueur 1 a un 7 pour contrer !`; pendingDraw = 2; } 
-      else {
+      if (player1HasSeven) {
+        startMessage = `Nouvelle partie ! Un 7 est retourné. Joueur 1 a un 7 pour contrer !`;
+        pendingDraw = 2;
+      } else {
         const { newDeck, newDiscard, drawnCards } = drawCardsAutomatic(deck, [topCard], 2);
-        p1Hand.push(...drawnCards); startMessage = `Nouvelle partie ! Un 7 est retourné. Joueur 1 pioche automatiquement 2 cartes !`; currentDeck = newDeck;
+        p1Hand.push(...drawnCards);
+        startMessage = `Nouvelle partie ! Un 7 est retourné. Joueur 1 pioche automatiquement 2 cartes !`;
+        currentDeck = newDeck;
       }
     } else if (topCard.isJoker) {
       const { newDeck, newDiscard, drawnCards } = drawCardsAutomatic(deck, [topCard], 5);
-      p1Hand.push(...drawnCards); startMessage = `Nouvelle partie ! Un Joker est retourné. Joueur 1 pioche automatiquement 5 cartes !`; currentDeck = newDeck;
+      p1Hand.push(...drawnCards);
+      startMessage = `Nouvelle partie ! Un Joker est retourné. Joueur 1 pioche automatiquement 5 cartes !`;
+      currentDeck = newDeck;
     }
-    const newState: GameState = { status: 'playing', player1_ready: true, player2_ready: true, current_turn: 1, player1_hand: p1Hand, player2_hand: p2Hand, deck: currentDeck, discard_pile: [topCard], top_card: topCard, forced_suit: null, pending_draw: pendingDraw, winner: null, message: startMessage, just_drew: false };
+    const newState: GameState = {
+      status: 'playing',
+      player1_ready: true,
+      player2_ready: true,
+      current_turn: 1,
+      player1_hand: p1Hand,
+      player2_hand: p2Hand,
+      deck: currentDeck,
+      discard_pile: [topCard],
+      top_card: topCard,
+      forced_suit: null,
+      pending_draw: pendingDraw,
+      winner: null,
+      message: startMessage,
+      just_drew: false,
+    };
     await supabase.from('match_rooms').update({ game_state: newState, status: 'playing', winner_id: null }).eq('id', roomId);
   };
 
@@ -389,7 +483,7 @@ export default function MultiplayerRoomPage() {
         ) : gameState.status === 'finished' ? (
           <div className="bg-white/95 rounded-2xl p-8 shadow-2xl border-2 border-yellow-400 text-center">
             <Trophy className="w-20 h-20 mx-auto text-yellow-500 mb-4" />
-            <h2 className="text-3xl font-black mb-4">{gameState.winner === myId ? '🎉 Tu as gagné !' : ' Tu as perdu...'}</h2>
+            <h2 className="text-3xl font-black mb-4">{gameState.winner === myId ? '🎉 Tu as gagné !' : '😢 Tu as perdu...'}</h2>
             <p className="text-gray-600 mb-6">Vainqueur : Joueur {gameState.winner}</p>
             <div className="space-y-3 max-w-md mx-auto">
               <Button onClick={handleNewGame} className="bg-gradient-to-b from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-black font-black border-b-4 border-yellow-800 py-6 text-lg w-full"><Sparkles className="w-5 h-5 mr-2" /> Nouvelle partie</Button>
