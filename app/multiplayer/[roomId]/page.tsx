@@ -241,7 +241,7 @@ export default function MultiplayerRoomPage() {
     
     if (card.rank === '10') {
       newMessage = '10 joué ! Tour de l\'adversaire sauté. Vous pouvez rejouer ou passer votre tour.';
-      newCurrentTurn = myId; // On garde le tour
+      newCurrentTurn = myId;
     }
     
     if (card.rank === 'Jack' || card.isJoker) {
@@ -318,6 +318,7 @@ export default function MultiplayerRoomPage() {
     await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
   };
 
+  // ✅ MODIFIÉ : Après avoir pioché, le joueur garde la main (just_drew = true)
   const handleDraw = async () => {
     if (!gameState || actionLocked) return;
     const myId: 1 | 2 = isPlayer1 ? 1 : 2;
@@ -328,21 +329,22 @@ export default function MultiplayerRoomPage() {
     const { newDeck, newDiscard, drawnCards } = drawCardsAutomatic(gameState.deck, gameState.discard_pile, cardsToDraw);
     const myHand = isPlayer1 ? [...gameState.player1_hand] : [...gameState.player2_hand];
     myHand.push(...drawnCards);
-    const nextTurn: 1 | 2 = myId === 1 ? 2 : 1;
     
+    // ✅ Le joueur garde la main après avoir pioché
     const newState: GameState = {
       ...gameState,
       ...(isPlayer1 ? { player1_hand: myHand } : { player2_hand: myHand }),
       deck: newDeck,
       discard_pile: newDiscard,
       pending_draw: 0,
-      message: `Joueur ${myId} pioche ${cardsToDraw} carte(s).`,
-      just_drew: false,
-      current_turn: nextTurn,
+      message: `Joueur ${myId} pioche ${cardsToDraw} carte(s). Joue une carte ou passe ton tour.`,
+      just_drew: true, // ✅ IMPORTANT : on garde la main
+      current_turn: myId, // ✅ Le tour reste au joueur qui a pioché
     };
     await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
   };
 
+  // ✅ Passer le tour après avoir pioché
   const handlePassTurn = async () => {
     if (!gameState || actionLocked) return;
     const myId: 1 | 2 = isPlayer1 ? 1 : 2;
@@ -427,8 +429,8 @@ export default function MultiplayerRoomPage() {
     return "Joue une carte ou pioche";
   };
 
-  // ✅ Afficher le bouton "Passer mon tour" après un 10
-  const canPassTurn = isMyTurn && gameState?.message?.includes('Tour de l\'adversaire sauté');
+  // ✅ Afficher le bouton "Passer mon tour" après un 10 OU après avoir pioché
+  const canPassTurn = isMyTurn && (gameState?.message?.includes('Tour de l\'adversaire sauté') || justDrew);
 
   return (
     <div className="relative min-h-screen p-4 overflow-hidden bg-[radial-gradient(ellipse_at_center,_#ff6b35_0%,_#d62828_40%,_#6a040f_100%)]">
@@ -449,7 +451,7 @@ export default function MultiplayerRoomPage() {
                   <img src={playerAvatar} alt={profile?.pseudo || 'Toi'} className="w-full h-full object-cover" />
                 </div>
                 <p className="font-bold text-gray-800">{profile?.pseudo || 'Toi'}</p>
-                <p className="text-sm text-gray-500 mb-3">{isReady ? '✅ Prêt' : ' Pas prêt'}</p>
+                <p className="text-sm text-gray-500 mb-3">{isReady ? '✅ Prêt' : '❌ Pas prêt'}</p>
                 <Button onClick={handleReady} className={isReady ? 'bg-gray-400' : 'bg-green-500 hover:bg-green-600'}>{isReady ? 'Annuler' : 'Je suis prêt !'}</Button>
               </div>
               <div className="text-4xl font-black text-yellow-500">VS</div>
@@ -505,7 +507,7 @@ export default function MultiplayerRoomPage() {
                     <div className="mt-2 bg-gray-700/90 border border-gray-500 rounded-lg px-3 py-2 shadow-lg">
                       <p className="text-white text-sm font-bold">{getInstructionMessage()}</p>
                     </div>
-                    {/* ✅ BOUTON PASSER MON TOUR - affiché après un 10 */}
+                    {/* ✅ BOUTON PASSER MON TOUR - affiché après un 10 OU après avoir pioché */}
                     {canPassTurn && (
                       <Button 
                         onClick={handlePassTurn}
