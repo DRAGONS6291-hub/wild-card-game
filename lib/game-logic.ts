@@ -122,7 +122,7 @@ export const createInitialLocalGameState = (playerNames: string[]): LocalGameSta
   };
 };
 
-// ✅ CORRECTION : Si forcedSuit existe, on NE vérifie QUE cette couleur
+// ✅ FONCTION CORRIGÉE : vérification robuste des rangs et couleurs
 export const isPlayable = (card: GameCard, topCard: GameCard, forcedSuit: Suit | null, pendingDraw?: number, jokerPendingDraw?: boolean): boolean => {
   if (jokerPendingDraw) {
     return false;
@@ -133,14 +133,18 @@ export const isPlayable = (card: GameCard, topCard: GameCard, forcedSuit: Suit |
   if (card.isJoker) return true;
   if (card.rank === 'Jack') return true;
   
-  // ✅ Si une couleur est imposée, on ne peut jouer QUE cette couleur
   if (forcedSuit) {
     return card.suit === forcedSuit;
   }
   
-  // Sinon, règles normales
-  const effectiveTopSuit = topCard.isJoker ? forcedSuit : topCard.suit;
-  return card.suit === effectiveTopSuit || card.rank === topCard.rank;
+  // ✅ Vérification robuste : on compare les rangs et couleurs en string
+  const cardRank = String(card.rank || '').trim();
+  const topRank = String(topCard.rank || '').trim();
+  const cardSuit = String(card.suit || '').trim();
+  const topSuit = String(topCard.suit || '').trim();
+  
+  // Même couleur OU même rang que la carte du dessus
+  return cardSuit === topSuit || cardRank === topRank;
 };
 
 export const getWinner = (state: GameState): Player | null => {
