@@ -130,6 +130,36 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
   const drawButtonDisabled = !isPlayerTurn || canPlayerEndTurn || mustAutoDraw;
   const formatTime = (seconds: number) => `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
 
+  // ✅ Construire le message d'instruction clair
+  const getInstructionMessage = () => {
+    if (winner) return null;
+    
+    if (autoDrawMessage) {
+      return ` ${autoDrawMessage}`;
+    }
+    if (jokerPendingDraw && pendingDraw > 0) {
+      return `⚠️ Pioche ${pendingDraw} cartes (Joker)`;
+    }
+    if (pendingDraw > 0) {
+      if (canPlayerPlaySeven) {
+        return `⚠️ Joue un 7 ou pioche ${pendingDraw} cartes`;
+      }
+      return `️ Pioche ${pendingDraw} cartes automatiquement`;
+    }
+    if (forcedSuit) {
+      return `🎯 Joue une carte de ${SUITS_FR[forcedSuit]}`;
+    }
+    if (isPending) {
+      return `⏳ L'IA réfléchit...`;
+    }
+    if (isPlayerTurn) {
+      return `▶️ À ton tour ! Joue une carte ou pioche`;
+    }
+    return null;
+  };
+
+  const instructionMessage = getInstructionMessage();
+
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-[radial-gradient(ellipse_at_center,_#ff6b35_0%,_#d62828_40%,_#6a040f_100%)]">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(255,200,0,0.3)_0%,_transparent_60%)]"></div>
@@ -177,7 +207,7 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
         </div>
       </div>
 
-      {/* ✅ JOUEUR EN BAS AVEC BADGES TRÈS VISIBLES À CÔTÉ DU PSEUDO */}
+      {/* ✅ JOUEUR EN BAS AVEC RECTANGLE GRIS D'INSTRUCTION */}
       <div className="absolute bottom-0 left-0 right-0 z-10 flex flex-col items-center pb-4 px-4">
         <div className="relative mb-2 flex items-center gap-3 w-full max-w-md justify-center">
           <div className={`w-16 h-16 md:w-20 md:h-20 rounded-full border-4 ${isPlayerTurn ? 'border-yellow-400 animate-pulse' : 'border-white/50'} overflow-hidden shadow-2xl bg-gray-800 flex-shrink-0`}>
@@ -187,33 +217,18 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
             <div className="bg-blue-600 text-white text-sm md:text-base font-bold px-4 py-1.5 rounded-full border-2 border-white shadow-lg whitespace-nowrap mb-1">
               {playerName}
             </div>
-            
-            {/* ✅ BADGES SOLIDES ET VISIBLES */}
-            <div className="flex flex-wrap gap-2 mt-1">
-              {forcedSuit && (
-                <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-yellow-400 text-black border border-yellow-600 shadow-sm">
-                  🎯 {SUITS_FR[forcedSuit]}
-                </span>
-              )}
-              {pendingDraw > 0 && (
-                <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-red-500 text-white border border-red-700 shadow-sm animate-pulse">
-                  ⚠️ +{pendingDraw} cartes
-                </span>
-              )}
-              {autoDrawMessage && (
-                <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-green-500 text-white border border-green-700 shadow-sm animate-pulse">
-                  💡 {autoDrawMessage}
-                </span>
-              )}
-              {!isPlayerTurn && isPending && (
-                <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-gray-700 text-white border border-gray-500 shadow-sm">
-                  <Loader2 className="animate-spin h-3 w-3 mr-1" /> L'IA réfléchit...
-                </span>
-              )}
-            </div>
           </div>
           {isPlayerTurn && <div className="absolute -top-1 right-0 md:-right-1 bg-yellow-400 rounded-full p-1.5 shadow-lg animate-pulse"><Trophy className="w-5 h-5 text-red-700" /></div>}
         </div>
+
+        {/* ✅ RECTANGLE GRIS D'INSTRUCTION - TRÈS VISIBLE */}
+        {instructionMessage && (
+          <div className="mb-3 w-full max-w-md bg-gray-700/90 backdrop-blur-sm rounded-lg px-4 py-2.5 border-2 border-gray-500 shadow-lg">
+            <p className="text-white text-sm md:text-base font-bold text-center">
+              {instructionMessage}
+            </p>
+          </div>
+        )}
 
         <div className="flex justify-center items-end -space-x-4 sm:-space-x-6 md:-space-x-8 px-2 sm:px-4 w-full overflow-x-auto pb-2">
           {sortedPlayerHand.map((card, index) => (

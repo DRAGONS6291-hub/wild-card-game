@@ -326,6 +326,27 @@ export default function MultiplayerRoomPage() {
   const isMyTurn = gameState?.current_turn === myId && gameState?.status === 'playing';
   const justDrew = gameState?.just_drew && isMyTurn;
 
+  // ✅ Construire le message d'instruction clair
+  const getInstructionMessage = () => {
+    if (!gameState || gameState.status !== 'playing') return null;
+    
+    if (gameState.pending_draw > 0) {
+      return `⚠️ Pioche ${gameState.pending_draw} cartes ou joue un 7`;
+    }
+    if (gameState.forced_suit) {
+      return ` Joue une carte de ${SUITS_FR[gameState.forced_suit]}`;
+    }
+    if (justDrew) {
+      return `💡 Joue une carte ou passe ton tour`;
+    }
+    if (isMyTurn) {
+      return `▶️ À ton tour ! Joue une carte`;
+    }
+    return null;
+  };
+
+  const instructionMessage = getInstructionMessage();
+
   return (
     <div className="relative min-h-screen p-4 overflow-hidden bg-[radial-gradient(ellipse_at_center,_#ff6b35_0%,_#d62828_40%,_#6a040f_100%)]">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(255,200,0,0.3)_0%,_transparent_60%)]"></div>
@@ -383,39 +404,27 @@ export default function MultiplayerRoomPage() {
               <div className="flex flex-col items-center"><p className="text-white text-xs font-bold mb-2">PIOCHE ({gameState.deck.length})</p><button onClick={handleDraw} disabled={!isMyTurn || justDrew} className="cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-transform hover:scale-105"><PlayingCard isFaceDown className="w-20 h-28 md:w-24 md:h-32" /></button></div>
             </div>
 
-            {/* ✅ MA MAIN AVEC BADGES TRÈS VISIBLES À CÔTÉ DU PSEUDO */}
+            {/* ✅ MA MAIN AVEC RECTANGLE GRIS D'INSTRUCTION À CÔTÉ DU PSEUDO */}
             <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border-2 border-yellow-400/50">
-              <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-3 gap-3">
-                <div className="flex items-center gap-3 flex-1 min-w-0 w-full">
-                  <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center text-white text-lg font-bold border-2 border-white flex-shrink-0">
-                    {profile?.pseudo?.charAt(0).toUpperCase() || '?'}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-white font-bold text-base truncate">{profile?.pseudo || 'Toi'}</p>
-                    <p className="text-yellow-400 text-sm font-semibold">{myHand.length} cartes</p>
-                    
-                    {/* ✅ BADGES SOLIDES ET VISIBLES */}
-                    <div className="flex flex-wrap gap-2 mt-1.5">
-                      {gameState?.forced_suit && (
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-yellow-400 text-black border border-yellow-600 shadow-sm">
-                          🎯 {SUITS_FR[gameState.forced_suit]}
-                        </span>
-                      )}
-                      {gameState?.pending_draw > 0 && (
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-red-500 text-white border border-red-700 shadow-sm animate-pulse">
-                          ⚠️ +{gameState.pending_draw} cartes
-                        </span>
-                      )}
-                      {justDrew && (
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-green-500 text-white border border-green-700 shadow-sm">
-                          💡 Joue ou passe
-                        </span>
-                      )}
-                    </div>
-                  </div>
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center text-white text-lg font-bold border-2 border-white flex-shrink-0">
+                  {profile?.pseudo?.charAt(0).toUpperCase() || '?'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white font-bold text-base truncate">{profile?.pseudo || 'Toi'}</p>
+                  <p className="text-yellow-400 text-sm font-semibold">{myHand.length} cartes</p>
                 </div>
                 {isMyTurn && <span className="bg-green-400 text-black text-xs font-bold px-3 py-1.5 rounded-full animate-pulse flex-shrink-0">Ton tour !</span>}
               </div>
+
+              {/* ✅ RECTANGLE GRIS D'INSTRUCTION - TRÈS VISIBLE */}
+              {instructionMessage && (
+                <div className="mb-3 bg-gray-700/90 backdrop-blur-sm rounded-lg px-4 py-2.5 border-2 border-gray-500 shadow-lg">
+                  <p className="text-white text-sm md:text-base font-bold text-center">
+                    {instructionMessage}
+                  </p>
+                </div>
+              )}
               
               <div className="flex justify-center gap-1 flex-wrap mb-3">
                 {myHand.map((card) => {
