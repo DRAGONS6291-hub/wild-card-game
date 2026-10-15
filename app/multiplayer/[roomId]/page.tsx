@@ -4,7 +4,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, Users, Trophy, Sparkles, Home } from 'lucide-react';
+import { ArrowLeft, Loader2, Users, Trophy, Sparkles, Home, SkipForward } from 'lucide-react';
 import Link from 'next/link';
 import { PlayingCard } from '@/components/game/PlayingCard';
 import { GameCard, Suit, SUITS_FR } from '@/lib/game-types';
@@ -23,6 +23,7 @@ interface GameState {
   pending_draw: number;
   winner: 1 | 2 | null;
   message: string;
+  just_drew: boolean;
 }
 
 export default function MultiplayerRoomPage() {
@@ -73,6 +74,26 @@ export default function MultiplayerRoomPage() {
     return false;
   }
 
+  // ✅ Fonction pour piocher des cartes automatiquement (recyclage défausse si besoin)
+  function drawCardsAutomatic(deck: GameCard[], discardPile: GameCard[], count: number): { newDeck: GameCard[]; newDiscard: GameCard[]; drawnCards: GameCard[] } {
+    let newDeck = [...deck];
+    let newDiscard = [...discardPile];
+    
+    if (newDeck.length < count) {
+      const lastCard = newDiscard[newDiscard.length - 1];
+      const toShuffle = newDiscard.slice(0, -1);
+      for (let i = toShuffle.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [toShuffle[i], toShuffle[j]] = [toShuffle[j], toShuffle[i]];
+      }
+      newDeck = [...newDeck, ...toShuffle];
+      newDiscard = [lastCard];
+    }
+    
+    const drawnCards = newDeck.splice(0, count);
+    return { newDeck, newDiscard, drawnCards };
+  }
+
   useEffect(() => {
     if (!roomId || !userId) return;
     const loadRoom = async () => {
@@ -119,7 +140,7 @@ export default function MultiplayerRoomPage() {
     setActionLocked(true);
     const newReadyState = !isReady;
     setIsReady(newReadyState);
-    const currentState = room.game_state || { status: 'waiting', player1_ready: false, player2_ready: false, message: 'En attente...', player1_hand: [], player2_hand: [], deck: [], discard_pile: [], top_card: null, current_turn: 1, forced_suit: null, pending_draw: 0, winner: null };
+    const currentState = room.game_state || { status: 'waiting', player1_ready: false, player2_ready: false, message: 'En attente...', player1_hand: [], player2_hand: [], deck: [], discard_pile: [], top_card: null, current_turn: 1, forced_suit: null, pending_draw: 0, winner: null, just_drew: false };
     const updateData = { ...currentState, ...(isPlayer1 ? { player1_ready: newReadyState } : { player2_ready: newReadyState }) };
     const p1Ready = isPlayer1 ? newReadyState : currentState.player1_ready;
     const p2Ready = !isPlayer1 ? newReadyState : currentState.player2_ready;
@@ -139,6 +160,7 @@ export default function MultiplayerRoomPage() {
       updateData.forced_suit = null;
       updateData.pending_draw = 0;
       updateData.winner = null;
+      updateData.just_drew = false;
     } else {
       updateData.status = 'waiting';
       updateData.message = 'En attente de l\'adversaire...';
@@ -173,23 +195,46 @@ export default function MultiplayerRoomPage() {
     } else if (card.rank === 'Jack' || card.isJoker) {
       setPendingCard(card);
       setShowSuitPicker(true);
-      const partialState = { ...gameState, ...(isPlayer1 ? { player1_hand: myHand } : { player2_hand: myHand }), discard_pile: newDiscard, top_card: card, pending_draw: newPendingDraw, message: newMessage + ' - Choisis une couleur...' };
+      const partialState = { ...gameState, ...(isPlayer1 ? { player1_hand: myHand } : { player2_hand: myHand }), discard_pile: newDiscard, top_card: card, pending_draw: newPendingDraw, message: newMessage + ' - Choisis une couleur...', just_drew: false };
       await supabase.from('match_rooms').update({ game_state: partialState }).eq('id', roomId);
       return;
     }
     let winner = gameState.winner;
     let status = gameState.status;
     if (myHand.length === 0) { winner = myId; status = 'finished'; newMessage = `🎉 Joueur ${myId} a gagné !`; }
-    const newState: GameState = { ...gameState, ...(isPlayer1 ? { player1_hand: myHand } : { player2_hand: myHand }), discard_pile: newDiscard, top_card: card, current_turn: winner ? gameState.current_turn : newCurrentTurn, forced_suit: newForcedSuit, pending_draw: newPendingDraw, winner, status, message: newMessage };
+    const newState: GameState = { ...gameState, ...(isPlayer1 ? { player1_hand: myHand } : { player2_hand: myHand }), discard_pile: newDiscard, top_card: card, current_turn: winner ? gameState.current_turn : newCurrentTurn, forced_suit: newForcedSuit, pending_draw: newPendingDraw, winner, status, message: newMessage, just_drew: false };
     await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
   };
 
+  // ✅ MODIFIÉ : Quand on choisit la couleur après un Joker, l'adversaire reçoit automatiquement 5 cartes
   const handleChooseSuit = async (suit: Suit) => {
     if (!gameState || !pendingCard) return;
     setShowSuitPicker(false);
+    
     const myId: 1 | 2 = isPlayer1 ? 1 : 2;
-    const nextTurn: 1 | 2 = myId === 1 ? 2 : 1;
-    const newState: GameState = { ...gameState, forced_suit: suit, current_turn: nextTurn, message: `Joueur ${myId} choisit ${SUITS_FR[suit]}` };
+    const opponentId: 1 | 2 = myId === 1 ? 2 : 1;
+    const nextTurn: 1 | 2 = opponentId;
+    
+    // Récupérer les mains
+    const myHand = isPlayer1 ? [...gameState.player1_hand] : [...gameState.player2_hand];
+    const opponentHand = isPlayer1 ? [...gameState.player2_hand] : [...gameState.player1_hand];
+    
+    // ✅ L'adversaire reçoit automatiquement 5 cartes
+    const { newDeck, newDiscard, drawnCards } = drawCardsAutomatic(gameState.deck, gameState.discard_pile, 5);
+    opponentHand.push(...drawnCards);
+    
+    const newState: GameState = {
+      ...gameState,
+      ...(isPlayer1 ? { player1_hand: myHand, player2_hand: opponentHand } : { player1_hand: opponentHand, player2_hand: myHand }),
+      deck: newDeck,
+      discard_pile: newDiscard,
+      forced_suit: suit,
+      current_turn: nextTurn,
+      pending_draw: 0,
+      message: `Joueur ${myId} choisit ${SUITS_FR[suit]}. ${opponentName} pioche automatiquement 5 cartes !`,
+      just_drew: false,
+    };
+    
     setPendingCard(null);
     await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
   };
@@ -199,24 +244,42 @@ export default function MultiplayerRoomPage() {
     const myId: 1 | 2 = isPlayer1 ? 1 : 2;
     if (gameState.current_turn !== myId) return;
     setActionLocked(true);
+    
     const cardsToDraw = gameState.pending_draw > 0 ? gameState.pending_draw : 1;
-    let newDeck = [...gameState.deck];
-    let newDiscard = [...gameState.discard_pile];
-    if (newDeck.length < cardsToDraw) {
-      const lastCard = newDiscard[newDiscard.length - 1];
-      const toShuffle = newDiscard.slice(0, -1);
-      for (let i = toShuffle.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [toShuffle[i], toShuffle[j]] = [toShuffle[j], toShuffle[i]];
-      }
-      newDeck = [...newDeck, ...toShuffle];
-      newDiscard = [lastCard];
-    }
-    const drawnCards = newDeck.splice(0, cardsToDraw);
+    const { newDeck, newDiscard, drawnCards } = drawCardsAutomatic(gameState.deck, gameState.discard_pile, cardsToDraw);
+    
     const myHand = isPlayer1 ? [...gameState.player1_hand] : [...gameState.player2_hand];
     myHand.push(...drawnCards);
+    
     const nextTurn: 1 | 2 = myId === 1 ? 2 : 1;
-    const newState: GameState = { ...gameState, ...(isPlayer1 ? { player1_hand: myHand } : { player2_hand: myHand }), deck: newDeck, discard_pile: newDiscard, pending_draw: 0, current_turn: nextTurn, message: `Joueur ${myId} pioche ${cardsToDraw} carte(s)` };
+    
+    const newState: GameState = {
+      ...gameState,
+      ...(isPlayer1 ? { player1_hand: myHand } : { player2_hand: myHand }),
+      deck: newDeck,
+      discard_pile: newDiscard,
+      pending_draw: 0,
+      message: `Joueur ${myId} pioche ${cardsToDraw} carte(s). Tu peux jouer ou passer ton tour.`,
+      just_drew: true,
+    };
+    
+    await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
+  };
+
+  const handlePassTurn = async () => {
+    if (!gameState || actionLocked) return;
+    const myId: 1 | 2 = isPlayer1 ? 1 : 2;
+    if (gameState.current_turn !== myId) return;
+    setActionLocked(true);
+    
+    const nextTurn: 1 | 2 = myId === 1 ? 2 : 1;
+    const newState: GameState = {
+      ...gameState,
+      current_turn: nextTurn,
+      message: `Joueur ${myId} passe son tour. Au tour du Joueur ${nextTurn} !`,
+      just_drew: false,
+    };
+    
     await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
   };
 
@@ -227,11 +290,10 @@ export default function MultiplayerRoomPage() {
     const p1Hand = deck.splice(0, 7);
     const p2Hand = deck.splice(0, 7);
     const topCard = deck.shift()!;
-    const newState: GameState = { status: 'playing', player1_ready: true, player2_ready: true, current_turn: 1, player1_hand: p1Hand, player2_hand: p2Hand, deck, discard_pile: [topCard], top_card: topCard, forced_suit: null, pending_draw: 0, winner: null, message: 'Nouvelle partie ! Tour du Joueur 1' };
+    const newState: GameState = { status: 'playing', player1_ready: true, player2_ready: true, current_turn: 1, player1_hand: p1Hand, player2_hand: p2Hand, deck, discard_pile: [topCard], top_card: topCard, forced_suit: null, pending_draw: 0, winner: null, message: 'Nouvelle partie ! Tour du Joueur 1', just_drew: false };
     await supabase.from('match_rooms').update({ game_state: newState, status: 'playing', winner_id: null }).eq('id', roomId);
   };
 
-  // ✅ NOUVEAU : Fonction pour quitter
   const handleQuit = () => {
     router.push('/menu');
   };
@@ -243,6 +305,7 @@ export default function MultiplayerRoomPage() {
   const myHand = gameState ? (isPlayer1 ? gameState.player1_hand : gameState.player2_hand) : [];
   const opponentHand = gameState ? (isPlayer1 ? gameState.player2_hand : gameState.player1_hand) : [];
   const isMyTurn = gameState?.current_turn === myId && gameState?.status === 'playing';
+  const justDrew = gameState?.just_drew && isMyTurn;
 
   return (
     <div className="relative min-h-screen p-4 overflow-hidden bg-[radial-gradient(ellipse_at_center,_#ff6b35_0%,_#d62828_40%,_#6a040f_100%)]">
@@ -258,6 +321,7 @@ export default function MultiplayerRoomPage() {
           <p className="text-white font-bold text-sm md:text-base">{gameState?.message || 'Chargement...'}</p>
           {gameState?.forced_suit && (<p className="text-yellow-400 text-xs mt-1">Couleur imposée : {SUITS_FR[gameState.forced_suit]}</p>)}
           {gameState?.pending_draw > 0 && (<p className="text-red-400 text-xs mt-1 font-bold animate-pulse">⚠️ OBLIGATOIRE : +{gameState.pending_draw} cartes à piocher ! (Joue un 7 pour cumuler ou pioche)</p>)}
+          {justDrew && (<p className="text-green-400 text-xs mt-1 font-bold animate-pulse">💡 Tu viens de piocher. Joue une carte ou passe ton tour !</p>)}
         </div>
         {!gameState || gameState.status === 'waiting' ? (
           <div className="bg-white/95 rounded-2xl p-6 shadow-2xl border-2 border-yellow-400 text-center">
@@ -278,7 +342,6 @@ export default function MultiplayerRoomPage() {
             </div>
           </div>
         ) : gameState.status === 'finished' ? (
-          /* ✅ ÉCRAN DE FIN AVEC BOUTON QUITTER AJOUTÉ */
           <div className="bg-white/95 rounded-2xl p-8 shadow-2xl border-2 border-yellow-400 text-center">
             <Trophy className="w-20 h-20 mx-auto text-yellow-500 mb-4" />
             <h2 className="text-3xl font-black mb-4">{gameState.winner === myId ? '🎉 Tu as gagné !' : '😢 Tu as perdu...'}</h2>
@@ -306,7 +369,7 @@ export default function MultiplayerRoomPage() {
             </div>
             <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-6 border-2 border-yellow-400/50 min-h-[180px] flex items-center justify-center gap-8">
               <div className="flex flex-col items-center"><p className="text-white text-xs font-bold mb-2">DÉFAUSSE</p>{gameState.top_card ? (<PlayingCard card={gameState.top_card} className="w-20 h-28 md:w-24 md:h-32" />) : (<div className="w-20 h-28 md:w-24 md:h-32 bg-gray-700 rounded-xl border-2 border-gray-500"></div>)}</div>
-              <div className="flex flex-col items-center"><p className="text-white text-xs font-bold mb-2">PIOCHE ({gameState.deck.length})</p><button onClick={handleDraw} disabled={!isMyTurn} className="cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-transform hover:scale-105"><PlayingCard isFaceDown className="w-20 h-28 md:w-24 md:h-32" /></button></div>
+              <div className="flex flex-col items-center"><p className="text-white text-xs font-bold mb-2">PIOCHE ({gameState.deck.length})</p><button onClick={handleDraw} disabled={!isMyTurn || justDrew} className="cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-transform hover:scale-105"><PlayingCard isFaceDown className="w-20 h-28 md:w-24 md:h-32" /></button></div>
             </div>
             <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border-2 border-yellow-400/50">
               <div className="flex items-center justify-between mb-3">
@@ -316,12 +379,19 @@ export default function MultiplayerRoomPage() {
                 </div>
                 {isMyTurn && (<span className="bg-green-400 text-black text-xs font-bold px-3 py-1 rounded-full animate-pulse">Ton tour !</span>)}
               </div>
-              <div className="flex justify-center gap-1 flex-wrap">
+              <div className="flex justify-center gap-1 flex-wrap mb-3">
                 {myHand.map((card) => {
                   const playable = isMyTurn && isCardPlayable(card, gameState.top_card, gameState.forced_suit, gameState.pending_draw);
                   return (<PlayingCard key={card.id} card={card} isPlayable={playable} onPlay={handlePlayCard} className="w-14 h-20 md:w-20 md:h-28" />);
                 })}
               </div>
+              {justDrew && (
+                <div className="flex justify-center">
+                  <Button onClick={handlePassTurn} className="bg-gradient-to-b from-orange-400 to-orange-600 hover:from-orange-500 hover:to-orange-700 text-white font-bold border-b-4 border-orange-800 py-4 text-base">
+                    <SkipForward className="w-5 h-5 mr-2" /> Passer le tour
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -329,6 +399,7 @@ export default function MultiplayerRoomPage() {
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
               <h3 className="text-xl font-bold text-center mb-4">Choisis une couleur</h3>
+              <p className="text-sm text-gray-600 text-center mb-4">L'adversaire recevra automatiquement 5 cartes !</p>
               <div className="grid grid-cols-2 gap-3">{(['Hearts', 'Diamonds', 'Clubs', 'Spades'] as Suit[]).map((suit) => { const count = myHand.filter(card => card.suit === suit).length; return (<button key={suit} onClick={() => handleChooseSuit(suit)} className={`p-4 rounded-xl font-bold text-white border-4 transition-transform hover:scale-105 relative ${suit === 'Hearts' ? 'bg-red-500 border-red-700' : suit === 'Diamonds' ? 'bg-blue-500 border-blue-700' : suit === 'Clubs' ? 'bg-green-600 border-green-800' : 'bg-gray-800 border-gray-900'}`}><div className="text-lg">{SUITS_FR[suit]}</div><div className="text-sm mt-1 opacity-90">{count} carte{count !== 1 ? 's' : ''}</div></button>); })}</div>
             </div>
           </div>
