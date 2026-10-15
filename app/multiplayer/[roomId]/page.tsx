@@ -38,13 +38,12 @@ export default function MultiplayerRoomPage() {
   const [opponentReady, setOpponentReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [opponentName, setOpponentName] = useState('Adversaire');
-  const [opponentAvatar, setOpponentAvatar] = useState(''); // ✅ Avatar de l'adversaire
+  const [opponentAvatar, setOpponentAvatar] = useState('');
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [showSuitPicker, setShowSuitPicker] = useState(false);
   const [pendingCard, setPendingCard] = useState<GameCard | null>(null);
   const [actionLocked, setActionLocked] = useState(false);
 
-  // ✅ Avatar du joueur connecté (avec fallback sur pravatar)
   const playerAvatar = profile?.avatar_url || `https://i.pravatar.cc/150?u=${userId}`;
 
   function createShuffledDeck(): GameCard[] {
@@ -105,7 +104,6 @@ export default function MultiplayerRoomPage() {
       setIsPlayer1(p1);
       const opponentId = p1 ? data.player2_id : data.player1_id;
       if (opponentId) {
-        // ✅ Récupérer le pseudo ET l'avatar de l'adversaire
         const { data: profileData } = await supabase
           .from('profiles')
           .select('pseudo, avatar_url')
@@ -242,8 +240,8 @@ export default function MultiplayerRoomPage() {
     }
     
     if (card.rank === '10') {
-      newMessage = '10 joué ! Tour de l\'adversaire sauté';
-      newCurrentTurn = myId;
+      newMessage = '10 joué ! Tour de l\'adversaire sauté. Vous pouvez rejouer ou passer votre tour.';
+      newCurrentTurn = myId; // On garde le tour
     }
     
     if (card.rank === 'Jack' || card.isJoker) {
@@ -267,7 +265,7 @@ export default function MultiplayerRoomPage() {
     if (myHand.length === 0) {
       winner = myId;
       status = 'finished';
-      newMessage = `🎉 Joueur ${myId} a gagné !`;
+      newMessage = ` Joueur ${myId} a gagné !`;
     }
     
     const newState: GameState = {
@@ -429,6 +427,9 @@ export default function MultiplayerRoomPage() {
     return "Joue une carte ou pioche";
   };
 
+  // ✅ Afficher le bouton "Passer mon tour" après un 10
+  const canPassTurn = isMyTurn && gameState?.message?.includes('Tour de l\'adversaire sauté');
+
   return (
     <div className="relative min-h-screen p-4 overflow-hidden bg-[radial-gradient(ellipse_at_center,_#ff6b35_0%,_#d62828_40%,_#6a040f_100%)]">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(255,200,0,0.3)_0%,_transparent_60%)]"></div>
@@ -444,17 +445,15 @@ export default function MultiplayerRoomPage() {
           <div className="bg-white/95 rounded-2xl p-6 shadow-2xl border-2 border-yellow-400 text-center">
             <div className="flex flex-col md:flex-row items-center justify-center gap-8">
               <div className={`flex flex-col items-center p-6 rounded-xl border-2 ${isReady ? 'bg-green-50 border-green-400' : 'bg-gray-50 border-gray-300'}`}>
-                {/* ✅ Avatar du joueur connecté */}
                 <div className="w-20 h-20 rounded-full border-4 border-white overflow-hidden shadow-2xl bg-gray-200 mb-3">
                   <img src={playerAvatar} alt={profile?.pseudo || 'Toi'} className="w-full h-full object-cover" />
                 </div>
                 <p className="font-bold text-gray-800">{profile?.pseudo || 'Toi'}</p>
-                <p className="text-sm text-gray-500 mb-3">{isReady ? '✅ Prêt' : '❌ Pas prêt'}</p>
+                <p className="text-sm text-gray-500 mb-3">{isReady ? '✅ Prêt' : ' Pas prêt'}</p>
                 <Button onClick={handleReady} className={isReady ? 'bg-gray-400' : 'bg-green-500 hover:bg-green-600'}>{isReady ? 'Annuler' : 'Je suis prêt !'}</Button>
               </div>
               <div className="text-4xl font-black text-yellow-500">VS</div>
               <div className={`flex flex-col items-center p-6 rounded-xl border-2 ${opponentReady ? 'bg-green-50 border-green-400' : 'bg-gray-50 border-gray-300'}`}>
-                {/* ✅ Avatar de l'adversaire */}
                 <div className="w-20 h-20 rounded-full border-4 border-white overflow-hidden shadow-2xl bg-gray-200 mb-3">
                   <img src={opponentAvatar} alt={opponentName} className="w-full h-full object-cover" />
                 </div>
@@ -476,7 +475,6 @@ export default function MultiplayerRoomPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            {/* ✅ Main adverse avec avatar */}
             <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border-2 border-yellow-400/50">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
@@ -495,11 +493,9 @@ export default function MultiplayerRoomPage() {
               <div className="flex flex-col items-center"><p className="text-white text-xs font-bold mb-2">PIOCHE ({gameState.deck.length})</p><button onClick={handleDraw} disabled={!isMyTurn || justDrew} className="cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-transform hover:scale-105"><PlayingCard isFaceDown className="w-20 h-28 md:w-24 md:h-32" /></button></div>
             </div>
 
-            {/* ✅ Ma main avec mon avatar */}
             <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border-2 border-yellow-400/50">
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-3 gap-3">
                 <div className="flex items-center gap-3 flex-1 min-w-0 w-full">
-                  {/* ✅ Mon avatar */}
                   <div className="w-12 h-12 rounded-full border-2 border-white overflow-hidden shadow-lg bg-gray-200 flex-shrink-0">
                     <img src={playerAvatar} alt={profile?.pseudo || 'Toi'} className="w-full h-full object-cover" />
                   </div>
@@ -509,6 +505,15 @@ export default function MultiplayerRoomPage() {
                     <div className="mt-2 bg-gray-700/90 border border-gray-500 rounded-lg px-3 py-2 shadow-lg">
                       <p className="text-white text-sm font-bold">{getInstructionMessage()}</p>
                     </div>
+                    {/* ✅ BOUTON PASSER MON TOUR - affiché après un 10 */}
+                    {canPassTurn && (
+                      <Button 
+                        onClick={handlePassTurn}
+                        className="mt-2 bg-gradient-to-b from-orange-400 to-orange-600 hover:from-orange-500 hover:to-orange-700 text-white font-bold border-b-4 border-orange-800 py-2 px-4 text-sm"
+                      >
+                        <SkipForward className="w-4 h-4 mr-2" /> Passer mon tour
+                      </Button>
+                    )}
                   </div>
                 </div>
                 {isMyTurn && <span className="bg-green-400 text-black text-xs font-bold px-3 py-1.5 rounded-full animate-pulse flex-shrink-0">Ton tour !</span>}
@@ -520,13 +525,6 @@ export default function MultiplayerRoomPage() {
                   return <PlayingCard key={card.id} card={card} isPlayable={playable} onPlay={handlePlayCard} className="w-14 h-20 md:w-20 md:h-28" />;
                 })}
               </div>
-              {justDrew && (
-                <div className="flex justify-center">
-                  <Button onClick={handlePassTurn} className="bg-gradient-to-b from-orange-400 to-orange-600 hover:from-orange-500 hover:to-orange-700 text-white font-bold border-b-4 border-orange-800 py-4 text-base">
-                    <SkipForward className="w-5 h-5 mr-2" /> Passer le tour
-                  </Button>
-                </div>
-              )}
             </div>
           </div>
         )}
