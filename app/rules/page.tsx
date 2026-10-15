@@ -40,10 +40,13 @@ export default function RulesPage() {
                 <h3 className="font-bold text-red-700 text-lg mb-1">Le 7</h3>
                 <p className="text-sm text-gray-700">Cumule <strong>+2 cartes</strong> à piocher pour l'adversaire. L'adversaire peut contrer en jouant un autre 7 (le total devient +4, +6, etc.). Sinon, il doit piocher le total.</p>
               </div>
+              
+              {/* ✅ MISE À JOUR ICI */}
               <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-4">
                 <h3 className="font-bold text-purple-700 text-lg mb-1">Le 10</h3>
-                <p className="text-sm text-gray-700">Fait <strong>sauter le tour</strong> de l'adversaire. Vous conservez la main et vous rejouez immédiatement.</p>
+                <p className="text-sm text-gray-700">Fait <strong>sauter le tour</strong> de l'adversaire. Vous conservez la main et pouvez rejouer immédiatement, <strong>ou choisir de passer votre tour</strong> via le bouton dédié qui apparaît à l'écran.</p>
               </div>
+
               <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
                 <h3 className="font-bold text-blue-700 text-lg mb-1">Le Valet (Jack)</h3>
                 <p className="text-sm text-gray-700">Jouable sur <strong>n'importe quelle carte</strong>. Vous choisissez la couleur que l'adversaire sera obligé de jouer.</p>
