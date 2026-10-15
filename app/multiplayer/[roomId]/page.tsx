@@ -74,11 +74,9 @@ export default function MultiplayerRoomPage() {
     return false;
   }
 
-  // ✅ Fonction pour piocher des cartes automatiquement (recyclage défausse si besoin)
   function drawCardsAutomatic(deck: GameCard[], discardPile: GameCard[], count: number): { newDeck: GameCard[]; newDiscard: GameCard[]; drawnCards: GameCard[] } {
     let newDeck = [...deck];
     let newDiscard = [...discardPile];
-    
     if (newDeck.length < count) {
       const lastCard = newDiscard[newDiscard.length - 1];
       const toShuffle = newDiscard.slice(0, -1);
@@ -89,7 +87,6 @@ export default function MultiplayerRoomPage() {
       newDeck = [...newDeck, ...toShuffle];
       newDiscard = [lastCard];
     }
-    
     const drawnCards = newDeck.splice(0, count);
     return { newDeck, newDiscard, drawnCards };
   }
@@ -168,6 +165,7 @@ export default function MultiplayerRoomPage() {
     await supabase.from('match_rooms').update({ game_state: updateData }).eq('id', roomId);
   };
 
+  // ✅ MODIFIÉ : Pioche automatique si l'adversaire n'a pas de 7
   const handlePlayCard = async (card: GameCard) => {
     if (!gameState || actionLocked) return;
     const myId: 1 | 2 = isPlayer1 ? 1 : 2;
@@ -185,10 +183,47 @@ export default function MultiplayerRoomPage() {
     let newPendingDraw = gameState.pending_draw;
     let newForcedSuit = gameState.forced_suit;
     let newCurrentTurn = nextTurn;
+    let newState: GameState;
+
     if (card.rank === '7') {
       newPendingDraw += 2;
-      newMessage = `7 joué ! +${newPendingDraw} cartes à piocher pour l'adversaire (ou joue un 7)`;
-      newCurrentTurn = nextTurn;
+      
+      // ✅ Vérifier si l'adversaire a un 7 dans sa main
+      const opponentHand = isPlayer1 ? [...gameState.player2_hand] : [...gameState.player1_hand];
+      const opponentHasSeven = opponentHand.some(c => c.rank === '7');
+      
+      if (opponentHasSeven) {
+        // L'adversaire peut contrer avec un 7
+        newMessage = `7 joué ! +${newPendingDraw} cartes. ${opponentName} a un 7 pour contrer !`;
+        newCurrentTurn = nextTurn;
+      } else {
+        // ✅ Pioche automatique : l'adversaire n'a pas de 7
+        const { newDeck, newDiscard: newDiscard2, drawnCards } = drawCardsAutomatic(
+          gameState.deck,
+          newDiscard,
+          newPendingDraw
+        );
+        opponentHand.push(...drawnCards);
+        newMessage = `7 joué ! ${opponentName} n'a pas de 7, pioche automatiquement ${newPendingDraw} cartes !`;
+        newCurrentTurn = myId; // On garde le tour car l'adversaire a "passé"
+        newPendingDraw = 0;
+        
+        newState = {
+          ...gameState,
+          ...(isPlayer1 ? { player1_hand: myHand, player2_hand: opponentHand } : { player1_hand: opponentHand, player2_hand: myHand }),
+          discard_pile: newDiscard2,
+          top_card: card,
+          current_turn: newCurrentTurn,
+          forced_suit: newForcedSuit,
+          pending_draw: newPendingDraw,
+          winner: gameState.winner,
+          status: gameState.status,
+          message: newMessage,
+          just_drew: false,
+        };
+        await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
+        return;
+      }
     } else if (card.rank === '10') {
       newMessage = '10 joué ! Tour de l\'adversaire sauté';
       newCurrentTurn = myId;
@@ -199,30 +234,24 @@ export default function MultiplayerRoomPage() {
       await supabase.from('match_rooms').update({ game_state: partialState }).eq('id', roomId);
       return;
     }
+
     let winner = gameState.winner;
     let status = gameState.status;
-    if (myHand.length === 0) { winner = myId; status = 'finished'; newMessage = `🎉 Joueur ${myId} a gagné !`; }
-    const newState: GameState = { ...gameState, ...(isPlayer1 ? { player1_hand: myHand } : { player2_hand: myHand }), discard_pile: newDiscard, top_card: card, current_turn: winner ? gameState.current_turn : newCurrentTurn, forced_suit: newForcedSuit, pending_draw: newPendingDraw, winner, status, message: newMessage, just_drew: false };
+    if (myHand.length === 0) { winner = myId; status = 'finished'; newMessage = ` Joueur ${myId} a gagné !`; }
+    newState = { ...gameState, ...(isPlayer1 ? { player1_hand: myHand } : { player2_hand: myHand }), discard_pile: newDiscard, top_card: card, current_turn: winner ? gameState.current_turn : newCurrentTurn, forced_suit: newForcedSuit, pending_draw: newPendingDraw, winner, status, message: newMessage, just_drew: false };
     await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
   };
 
-  // ✅ MODIFIÉ : Quand on choisit la couleur après un Joker, l'adversaire reçoit automatiquement 5 cartes
   const handleChooseSuit = async (suit: Suit) => {
     if (!gameState || !pendingCard) return;
     setShowSuitPicker(false);
-    
     const myId: 1 | 2 = isPlayer1 ? 1 : 2;
     const opponentId: 1 | 2 = myId === 1 ? 2 : 1;
     const nextTurn: 1 | 2 = opponentId;
-    
-    // Récupérer les mains
     const myHand = isPlayer1 ? [...gameState.player1_hand] : [...gameState.player2_hand];
     const opponentHand = isPlayer1 ? [...gameState.player2_hand] : [...gameState.player1_hand];
-    
-    // ✅ L'adversaire reçoit automatiquement 5 cartes
     const { newDeck, newDiscard, drawnCards } = drawCardsAutomatic(gameState.deck, gameState.discard_pile, 5);
     opponentHand.push(...drawnCards);
-    
     const newState: GameState = {
       ...gameState,
       ...(isPlayer1 ? { player1_hand: myHand, player2_hand: opponentHand } : { player1_hand: opponentHand, player2_hand: myHand }),
@@ -234,7 +263,6 @@ export default function MultiplayerRoomPage() {
       message: `Joueur ${myId} choisit ${SUITS_FR[suit]}. ${opponentName} pioche automatiquement 5 cartes !`,
       just_drew: false,
     };
-    
     setPendingCard(null);
     await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
   };
@@ -244,15 +272,11 @@ export default function MultiplayerRoomPage() {
     const myId: 1 | 2 = isPlayer1 ? 1 : 2;
     if (gameState.current_turn !== myId) return;
     setActionLocked(true);
-    
     const cardsToDraw = gameState.pending_draw > 0 ? gameState.pending_draw : 1;
     const { newDeck, newDiscard, drawnCards } = drawCardsAutomatic(gameState.deck, gameState.discard_pile, cardsToDraw);
-    
     const myHand = isPlayer1 ? [...gameState.player1_hand] : [...gameState.player2_hand];
     myHand.push(...drawnCards);
-    
     const nextTurn: 1 | 2 = myId === 1 ? 2 : 1;
-    
     const newState: GameState = {
       ...gameState,
       ...(isPlayer1 ? { player1_hand: myHand } : { player2_hand: myHand }),
@@ -262,7 +286,6 @@ export default function MultiplayerRoomPage() {
       message: `Joueur ${myId} pioche ${cardsToDraw} carte(s). Tu peux jouer ou passer ton tour.`,
       just_drew: true,
     };
-    
     await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
   };
 
@@ -271,7 +294,6 @@ export default function MultiplayerRoomPage() {
     const myId: 1 | 2 = isPlayer1 ? 1 : 2;
     if (gameState.current_turn !== myId) return;
     setActionLocked(true);
-    
     const nextTurn: 1 | 2 = myId === 1 ? 2 : 1;
     const newState: GameState = {
       ...gameState,
@@ -279,7 +301,6 @@ export default function MultiplayerRoomPage() {
       message: `Joueur ${myId} passe son tour. Au tour du Joueur ${nextTurn} !`,
       just_drew: false,
     };
-    
     await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
   };
 
@@ -320,7 +341,7 @@ export default function MultiplayerRoomPage() {
         <div className="bg-black/60 backdrop-blur-sm rounded-xl p-3 mb-4 text-center border-2 border-yellow-400/50">
           <p className="text-white font-bold text-sm md:text-base">{gameState?.message || 'Chargement...'}</p>
           {gameState?.forced_suit && (<p className="text-yellow-400 text-xs mt-1">Couleur imposée : {SUITS_FR[gameState.forced_suit]}</p>)}
-          {gameState?.pending_draw > 0 && (<p className="text-red-400 text-xs mt-1 font-bold animate-pulse">⚠️ OBLIGATOIRE : +{gameState.pending_draw} cartes à piocher ! (Joue un 7 pour cumuler ou pioche)</p>)}
+          {gameState?.pending_draw > 0 && (<p className="text-red-400 text-xs mt-1 font-bold animate-pulse">️ OBLIGATOIRE : +{gameState.pending_draw} cartes à piocher ! (Joue un 7 pour contrer ou pioche)</p>)}
           {justDrew && (<p className="text-green-400 text-xs mt-1 font-bold animate-pulse">💡 Tu viens de piocher. Joue une carte ou passe ton tour !</p>)}
         </div>
         {!gameState || gameState.status === 'waiting' ? (
