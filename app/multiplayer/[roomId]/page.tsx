@@ -65,21 +65,25 @@ export default function MultiplayerRoomPage() {
     return deck;
   }
 
-  // ✅ CETTE FONCTION CONTIENT DÉJÀ LA RÈGLE "MÊME COULEUR OU MÊME RANG"
+  // ✅ FONCTION CORRIGÉE : même rang jouable même avec couleur imposée
   function isCardPlayable(card: GameCard, topCard: GameCard | null, forcedSuit: Suit | null, pendingDraw: number = 0): boolean {
     // Si on doit piocher (cumul de 7), on ne peut jouer que des 7
     if (pendingDraw > 0) return card.rank === '7';
     if (!topCard) return true;
     // Joker et Valet sont toujours jouables
     if (card.isJoker || card.rank === 'Jack') return true;
-    // Si une couleur est imposée, on doit jouer cette couleur
-    if (forcedSuit) return card.suit === forcedSuit;
     
-    // ✅ RÈGLE PRINCIPALE : Même couleur OU même rang
     const cardRank = String(card.rank || '').trim();
     const topRank = String(topCard.rank || '').trim();
     const cardSuit = String(card.suit || '').trim();
     const topSuit = String(topCard.suit || '').trim();
+    
+    // ✅ Si une couleur est imposée, on peut jouer cette couleur OU le même rang
+    if (forcedSuit) {
+      return card.suit === forcedSuit || cardRank === topRank;
+    }
+    
+    // Sinon, règles normales : même couleur OU même rang
     return cardSuit === topSuit || cardRank === topRank;
   }
 
@@ -427,7 +431,7 @@ export default function MultiplayerRoomPage() {
       if (hasSeven) return `Joue un 7 ou pioche ${gameState.pending_draw} cartes`;
       return `Pioche ${gameState.pending_draw} cartes`;
     }
-    if (gameState?.forced_suit) return `Joue ${SUITS_FR[gameState.forced_suit]}`;
+    if (gameState?.forced_suit) return `Joue ${SUITS_FR[gameState.forced_suit]} ou un même rang`;
     if (justDrew) return "Joue une carte ou passe ton tour";
     return "Joue une carte ou pioche";
   };
