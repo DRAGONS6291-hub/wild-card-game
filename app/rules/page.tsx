@@ -24,7 +24,7 @@ export default function RulesPage() {
           <div className="flex items-start gap-4">
             <div className="bg-blue-100 p-3 rounded-full flex-shrink-0"><Target className="w-6 h-6 text-blue-600" /></div>
             <div>
-              <h2 className="text-xl font-black text-gray-800 mb-2">🎯 But du jeu</h2>
+              <h2 className="text-xl font-black text-gray-800 mb-2"> But du jeu</h2>
               <p className="text-gray-700">Être le premier joueur à se débarrasser de <strong>toutes ses cartes</strong>. Le premier qui pose sa dernière carte remporte la victoire !</p>
             </div>
           </div>
@@ -36,12 +36,12 @@ export default function RulesPage() {
               <Sparkles className="w-6 h-6 text-yellow-500" /> 🃏 Cartes Spéciales
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* ✅ MISE À JOUR ICI : ajout de la précision sur le droit de jouer ou passer son tour */}
               <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4">
                 <h3 className="font-bold text-red-700 text-lg mb-1">Le 7</h3>
-                <p className="text-sm text-gray-700">Cumule <strong>+2 cartes</strong> à piocher pour l'adversaire. L'adversaire peut contrer en jouant un autre 7 (le total devient +4, +6, etc.). Sinon, il doit piocher le total.</p>
+                <p className="text-sm text-gray-700">Cumule <strong>+2 cartes</strong> à piocher pour l'adversaire. L'adversaire peut contrer en jouant un autre 7 (le total devient +4, +6, etc.). Sinon, il doit piocher le total. <strong>Après avoir pioché, il peut jouer une carte ou passer son tour</strong> (indiqué dans le rectangle gris d'instructions).</p>
               </div>
               
-              {/* ✅ MISE À JOUR ICI */}
               <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-4">
                 <h3 className="font-bold text-purple-700 text-lg mb-1">Le 10</h3>
                 <p className="text-sm text-gray-700">Fait <strong>sauter le tour</strong> de l'adversaire. Vous conservez la main et pouvez rejouer immédiatement, <strong>ou choisir de passer votre tour</strong> via le bouton dédié qui apparaît à l'écran.</p>
