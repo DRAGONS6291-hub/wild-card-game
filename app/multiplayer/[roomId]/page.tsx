@@ -62,13 +62,20 @@ export default function MultiplayerRoomPage() {
     return deck;
   }
 
+  // ✅ CORRECTION ICI : Si forcedSuit existe, on NE vérifie QUE cette couleur
   function isCardPlayable(card: GameCard, topCard: GameCard | null, forcedSuit: Suit | null, pendingDraw: number = 0): boolean {
     if (pendingDraw > 0) {
       return card.rank === '7';
     }
     if (!topCard) return true;
     if (card.rank === 'Jack' || card.isJoker) return true;
-    if (forcedSuit && card.suit === forcedSuit) return true;
+    
+    // ✅ Si une couleur est imposée, on ne peut jouer QUE cette couleur
+    if (forcedSuit) {
+      return card.suit === forcedSuit;
+    }
+    
+    // Sinon, règles normales (même couleur ou même rang que la carte du dessus)
     if (card.suit === topCard.suit) return true;
     if (card.rank === topCard.rank) return true;
     return false;
@@ -132,7 +139,6 @@ export default function MultiplayerRoomPage() {
     return () => { supabase.removeChannel(channel); };
   }, [roomId, isPlayer1]);
 
-  // ✅ MODIFIÉ : Initialise pending_draw à 2 quand un 7 est retourné au départ
   const handleReady = async () => {
     if (!room) return;
     setActionLocked(true);
@@ -162,12 +168,11 @@ export default function MultiplayerRoomPage() {
       
       let startMessage = 'La partie commence ! Tour du Joueur 1';
       
-      // ✅ RÈGLE DE DÉMARRAGE : 7 ou Joker
       if (topCard.rank === '7') {
         const player1HasSeven = p1Hand.some(c => c.rank === '7');
         if (player1HasSeven) {
           startMessage = `La partie commence ! Un 7 est retourné. Joueur 1 a un 7 pour contrer !`;
-          updateData.pending_draw = 2; // ✅ IMPORTANT : Initialise à 2 pour permettre le cumul
+          updateData.pending_draw = 2;
         } else {
           const { newDeck, newDiscard, drawnCards } = drawCardsAutomatic(deck, [topCard], 2);
           p1Hand.push(...drawnCards);
@@ -213,7 +218,7 @@ export default function MultiplayerRoomPage() {
     let newState: GameState;
 
     if (card.rank === '7') {
-      newPendingDraw += 2; // ✅ Cumul avec pending_draw existant (qui peut être 2 au démarrage)
+      newPendingDraw += 2;
       const opponentHand = isPlayer1 ? [...gameState.player2_hand] : [...gameState.player1_hand];
       const opponentHasSeven = opponentHand.some(c => c.rank === '7');
       
@@ -221,11 +226,7 @@ export default function MultiplayerRoomPage() {
         newMessage = `7 joué ! +${newPendingDraw} cartes. ${opponentName} a un 7 pour contrer !`;
         newCurrentTurn = nextTurn;
       } else {
-        const { newDeck, newDiscard: newDiscard2, drawnCards } = drawCardsAutomatic(
-          gameState.deck,
-          newDiscard,
-          newPendingDraw
-        );
+        const { newDeck, newDiscard: newDiscard2, drawnCards } = drawCardsAutomatic(gameState.deck, newDiscard, newPendingDraw);
         opponentHand.push(...drawnCards);
         newMessage = `7 joué ! ${opponentName} n'a pas de 7, pioche automatiquement ${newPendingDraw} cartes !`;
         newCurrentTurn = myId;
@@ -268,24 +269,39 @@ export default function MultiplayerRoomPage() {
   const handleChooseSuit = async (suit: Suit) => {
     if (!gameState || !pendingCard) return;
     setShowSuitPicker(false);
+    
     const myId: 1 | 2 = isPlayer1 ? 1 : 2;
     const opponentId: 1 | 2 = myId === 1 ? 2 : 1;
     const nextTurn: 1 | 2 = opponentId;
+    
     const myHand = isPlayer1 ? [...gameState.player1_hand] : [...gameState.player2_hand];
     const opponentHand = isPlayer1 ? [...gameState.player2_hand] : [...gameState.player1_hand];
-    const { newDeck, newDiscard, drawnCards } = drawCardsAutomatic(gameState.deck, gameState.discard_pile, 5);
-    opponentHand.push(...drawnCards);
+    
+    let newMessage = `Joueur ${myId} choisit ${SUITS_FR[suit]}`;
+    let newDeck = gameState.deck;
+    let newDiscard = gameState.discard_pile;
+
+    // Si c'était un Joker, l'adversaire prend 5 cartes
+    if (pendingCard.isJoker) {
+      const drawResult = drawCardsAutomatic(gameState.deck, gameState.discard_pile, 5);
+      opponentHand.push(...drawResult.drawnCards);
+      newDeck = drawResult.newDeck;
+      newDiscard = drawResult.newDiscard;
+      newMessage += `. ${opponentName} pioche automatiquement 5 cartes !`;
+    }
+
     const newState: GameState = {
       ...gameState,
       ...(isPlayer1 ? { player1_hand: myHand, player2_hand: opponentHand } : { player1_hand: opponentHand, player2_hand: myHand }),
       deck: newDeck,
       discard_pile: newDiscard,
-      forced_suit: suit,
+      forced_suit: suit, // ✅ Ici on impose la couleur choisie
       current_turn: nextTurn,
       pending_draw: 0,
-      message: `Joueur ${myId} choisit ${SUITS_FR[suit]}. ${opponentName} pioche automatiquement 5 cartes !`,
+      message: newMessage,
       just_drew: false,
     };
+    
     setPendingCard(null);
     await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
   };
@@ -327,7 +343,6 @@ export default function MultiplayerRoomPage() {
     await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
   };
 
-  // ✅ MODIFIÉ : Initialise pending_draw à 2 quand un 7 est retourné au départ
   const handleNewGame = async () => {
     if (!room) return;
     setActionLocked(true);
@@ -340,12 +355,11 @@ export default function MultiplayerRoomPage() {
     let pendingDraw = 0;
     let currentDeck = deck;
     
-    // ✅ RÈGLE DE DÉMARRAGE
     if (topCard.rank === '7') {
       const player1HasSeven = p1Hand.some(c => c.rank === '7');
       if (player1HasSeven) {
         startMessage = `Nouvelle partie ! Un 7 est retourné. Joueur 1 a un 7 pour contrer !`;
-        pendingDraw = 2; // ✅ Initialise à 2 pour permettre le cumul
+        pendingDraw = 2;
       } else {
         const { newDeck, newDiscard, drawnCards } = drawCardsAutomatic(deck, [topCard], 2);
         p1Hand.push(...drawnCards);
@@ -363,9 +377,7 @@ export default function MultiplayerRoomPage() {
     await supabase.from('match_rooms').update({ game_state: newState, status: 'playing', winner_id: null }).eq('id', roomId);
   };
 
-  const handleQuit = () => {
-    router.push('/menu');
-  };
+  const handleQuit = () => { router.push('/menu'); };
 
   if (loading) { return (<div className="min-h-screen flex items-center justify-center bg-[radial-gradient(ellipse_at_center,_#ff6b35_0%,_#d62828_40%,_#6a040f_100%)]"><Loader2 className="w-12 h-12 text-yellow-400 animate-spin" /></div>); }
   if (!room) { return (<div className="min-h-screen flex items-center justify-center bg-[radial-gradient(ellipse_at_center,_#ff6b35_0%,_#d62828_40%,_#6a040f_100%)]"><p className="text-white text-xl font-bold">Salle introuvable</p></div>); }
@@ -388,8 +400,8 @@ export default function MultiplayerRoomPage() {
         </div>
         <div className="bg-black/60 backdrop-blur-sm rounded-xl p-3 mb-4 text-center border-2 border-yellow-400/50">
           <p className="text-white font-bold text-sm md:text-base">{gameState?.message || 'Chargement...'}</p>
-          {gameState?.forced_suit && (<p className="text-yellow-400 text-xs mt-1">Couleur imposée : {SUITS_FR[gameState.forced_suit]}</p>)}
-          {gameState?.pending_draw > 0 && (<p className="text-red-400 text-xs mt-1 font-bold animate-pulse">️ OBLIGATOIRE : +{gameState.pending_draw} cartes à piocher ! (Joue un 7 pour contrer ou pioche)</p>)}
+          {gameState?.forced_suit && (<p className="text-yellow-400 text-xs mt-1 font-bold">🎯 Couleur imposée : {SUITS_FR[gameState.forced_suit]}</p>)}
+          {gameState?.pending_draw > 0 && (<p className="text-red-400 text-xs mt-1 font-bold animate-pulse">⚠️ OBLIGATOIRE : +{gameState.pending_draw} cartes à piocher ! (Joue un 7 pour contrer ou pioche)</p>)}
           {justDrew && (<p className="text-green-400 text-xs mt-1 font-bold animate-pulse">💡 Tu viens de piocher. Joue une carte ou passe ton tour !</p>)}
         </div>
         {!gameState || gameState.status === 'waiting' ? (
@@ -413,7 +425,7 @@ export default function MultiplayerRoomPage() {
         ) : gameState.status === 'finished' ? (
           <div className="bg-white/95 rounded-2xl p-8 shadow-2xl border-2 border-yellow-400 text-center">
             <Trophy className="w-20 h-20 mx-auto text-yellow-500 mb-4" />
-            <h2 className="text-3xl font-black mb-4">{gameState.winner === myId ? ' Tu as gagné !' : '😢 Tu as perdu...'}</h2>
+            <h2 className="text-3xl font-black mb-4">{gameState.winner === myId ? '🎉 Tu as gagné !' : '😢 Tu as perdu...'}</h2>
             <p className="text-gray-600 mb-6">Vainqueur : Joueur {gameState.winner}</p>
             <div className="space-y-3 max-w-md mx-auto">
               <Button onClick={handleNewGame} className="bg-gradient-to-b from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-black font-black border-b-4 border-yellow-800 py-6 text-lg w-full">
@@ -468,7 +480,7 @@ export default function MultiplayerRoomPage() {
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
               <h3 className="text-xl font-bold text-center mb-4">Choisis une couleur</h3>
-              <p className="text-sm text-gray-600 text-center mb-4">L'adversaire recevra automatiquement 5 cartes !</p>
+              <p className="text-sm text-gray-600 text-center mb-4">L'adversaire devra jouer cette couleur !</p>
               <div className="grid grid-cols-2 gap-3">{(['Hearts', 'Diamonds', 'Clubs', 'Spades'] as Suit[]).map((suit) => { const count = myHand.filter(card => card.suit === suit).length; return (<button key={suit} onClick={() => handleChooseSuit(suit)} className={`p-4 rounded-xl font-bold text-white border-4 transition-transform hover:scale-105 relative ${suit === 'Hearts' ? 'bg-red-500 border-red-700' : suit === 'Diamonds' ? 'bg-blue-500 border-blue-700' : suit === 'Clubs' ? 'bg-green-600 border-green-800' : 'bg-gray-800 border-gray-900'}`}><div className="text-lg">{SUITS_FR[suit]}</div><div className="text-sm mt-1 opacity-90">{count} carte{count !== 1 ? 's' : ''}</div></button>); })}</div>
             </div>
           </div>

@@ -41,7 +41,6 @@ export const drawCards = (deck: GameCard[], count: number) => ({
   remainingDeck: deck.slice(count),
 });
 
-// ✅ MODIFIÉ : Initialise pendingDraw à 2 quand un 7 est retourné au départ
 export const createInitialGameState = (difficulty: Difficulty = 'medium'): GameState => {
   let deck = shuffleDeck(createDeck());
   const { playerHand, aiHand, remainingDeck } = dealHands(deck, 7);
@@ -53,14 +52,12 @@ export const createInitialGameState = (difficulty: Difficulty = 'medium'): GameS
   let pendingDraw = 0;
   let jokerPendingDraw = false;
 
-  // ✅ RÈGLE DE DÉMARRAGE : 7 ou Joker
   if (topCard.rank === '7') {
     const playerHasSeven = playerHand.some(c => c.rank === '7');
     if (playerHasSeven) {
       gameMessage = 'La partie commence ! Un 7 est retourné. Vous avez un 7 pour contrer !';
-      pendingDraw = 2; // ✅ IMPORTANT : Initialise à 2 pour permettre le cumul
+      pendingDraw = 2;
     } else {
-      // Pioche automatique de 2 cartes pour le joueur
       const drawn = drawCards(deckAfterTopCard, 2);
       playerHand.push(...drawn.drawnCards);
       deckAfterTopCard = drawn.remainingDeck;
@@ -83,7 +80,6 @@ export const createInitialGameState = (difficulty: Difficulty = 'medium'): GameS
   };
 };
 
-// ✅ MODIFIÉ : Initialise pendingDraw à 2 quand un 7 est retourné au départ
 export const createInitialLocalGameState = (playerNames: string[]): LocalGameState => {
   const playerCount = playerNames.length;
   let deck = shuffleDeck(createDeck());
@@ -99,12 +95,11 @@ export const createInitialLocalGameState = (playerNames: string[]): LocalGameSta
   let gameMessage = `C'est au tour de ${players[0].name} !`;
   let pendingDraw = 0;
 
-  // ✅ RÈGLE DE DÉMARRAGE : 7 ou Joker pour le Joueur 1
   if (topCard.rank === '7') {
     const player1HasSeven = players[0].hand.some(c => c.rank === '7');
     if (player1HasSeven) {
       gameMessage = `La partie commence ! Un 7 est retourné. ${players[0].name} a un 7 pour contrer !`;
-      pendingDraw = 2; // ✅ IMPORTANT : Initialise à 2 pour permettre le cumul
+      pendingDraw = 2;
     } else {
       const drawn = drawCards(deck, 2);
       players[0].hand.push(...drawn.drawnCards);
@@ -127,6 +122,7 @@ export const createInitialLocalGameState = (playerNames: string[]): LocalGameSta
   };
 };
 
+// ✅ CORRECTION ICI : Si forcedSuit existe, on NE vérifie QUE cette couleur
 export const isPlayable = (card: GameCard, topCard: GameCard, forcedSuit: Suit | null, pendingDraw?: number, jokerPendingDraw?: boolean): boolean => {
   if (jokerPendingDraw) {
     return false;
@@ -136,8 +132,14 @@ export const isPlayable = (card: GameCard, topCard: GameCard, forcedSuit: Suit |
   }
   if (card.isJoker) return true;
   if (card.rank === 'Jack') return true;
+  
+  // ✅ Si une couleur est imposée, on ne peut jouer QUE cette couleur
+  if (forcedSuit) {
+    return card.suit === forcedSuit;
+  }
+  
+  // Sinon, règles normales
   const effectiveTopSuit = topCard.isJoker ? forcedSuit : topCard.suit;
-  if (forcedSuit) return card.suit === forcedSuit;
   return card.suit === effectiveTopSuit || card.rank === topCard.rank;
 };
 
