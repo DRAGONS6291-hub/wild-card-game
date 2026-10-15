@@ -41,12 +41,11 @@ export const drawCards = (deck: GameCard[], count: number) => ({
   remainingDeck: deck.slice(count),
 });
 
-// ✅ MODIFIÉ : Applique la règle de démarrage (7 ou Joker)
+// ✅ MODIFIÉ : Initialise pendingDraw à 2 quand un 7 est retourné au départ
 export const createInitialGameState = (difficulty: Difficulty = 'medium'): GameState => {
   let deck = shuffleDeck(createDeck());
   const { playerHand, aiHand, remainingDeck } = dealHands(deck, 7);
   
-  // On prend la première carte du paquet restant comme carte de départ
   let topCard = remainingDeck[0];
   let deckAfterTopCard = remainingDeck.slice(1);
   
@@ -59,6 +58,7 @@ export const createInitialGameState = (difficulty: Difficulty = 'medium'): GameS
     const playerHasSeven = playerHand.some(c => c.rank === '7');
     if (playerHasSeven) {
       gameMessage = 'La partie commence ! Un 7 est retourné. Vous avez un 7 pour contrer !';
+      pendingDraw = 2; // ✅ IMPORTANT : Initialise à 2 pour permettre le cumul
     } else {
       // Pioche automatique de 2 cartes pour le joueur
       const drawn = drawCards(deckAfterTopCard, 2);
@@ -67,12 +67,11 @@ export const createInitialGameState = (difficulty: Difficulty = 'medium'): GameS
       gameMessage = 'La partie commence ! Un 7 est retourné. Vous piochez automatiquement 2 cartes !';
     }
   } else if (topCard.isJoker) {
-    // Pioche automatique de 5 cartes pour le joueur
     const drawn = drawCards(deckAfterTopCard, 5);
     playerHand.push(...drawn.drawnCards);
     deckAfterTopCard = drawn.remainingDeck;
     gameMessage = 'La partie commence ! Un Joker est retourné. Vous piochez automatiquement 5 cartes !';
-    jokerPendingDraw = true; // Empêche de jouer tant qu'on n'a pas pioché (géré par isPlayable)
+    jokerPendingDraw = true;
   }
 
   return {
@@ -84,7 +83,7 @@ export const createInitialGameState = (difficulty: Difficulty = 'medium'): GameS
   };
 };
 
-// ✅ MODIFIÉ : Applique la règle de démarrage pour le mode Local
+// ✅ MODIFIÉ : Initialise pendingDraw à 2 quand un 7 est retourné au départ
 export const createInitialLocalGameState = (playerNames: string[]): LocalGameState => {
   const playerCount = playerNames.length;
   let deck = shuffleDeck(createDeck());
@@ -96,25 +95,23 @@ export const createInitialLocalGameState = (playerNames: string[]): LocalGameSta
     }
   }
   
-  // On prend la première carte comme carte de départ
   let topCard = deck.pop()!;
   let gameMessage = `C'est au tour de ${players[0].name} !`;
   let pendingDraw = 0;
 
-  // ✅ RÈGLE DE DÉMARRAGE : 7 ou Joker pour le Joueur 1 (index 0)
+  // ✅ RÈGLE DE DÉMARRAGE : 7 ou Joker pour le Joueur 1
   if (topCard.rank === '7') {
     const player1HasSeven = players[0].hand.some(c => c.rank === '7');
     if (player1HasSeven) {
       gameMessage = `La partie commence ! Un 7 est retourné. ${players[0].name} a un 7 pour contrer !`;
+      pendingDraw = 2; // ✅ IMPORTANT : Initialise à 2 pour permettre le cumul
     } else {
-      // Pioche automatique de 2 cartes pour le Joueur 1
       const drawn = drawCards(deck, 2);
       players[0].hand.push(...drawn.drawnCards);
       deck = drawn.remainingDeck;
       gameMessage = `La partie commence ! Un 7 est retourné. ${players[0].name} pioche automatiquement 2 cartes !`;
     }
   } else if (topCard.isJoker) {
-    // Pioche automatique de 5 cartes pour le Joueur 1
     const drawn = drawCards(deck, 5);
     players[0].hand.push(...drawn.drawnCards);
     deck = drawn.remainingDeck;
@@ -130,10 +127,9 @@ export const createInitialLocalGameState = (playerNames: string[]): LocalGameSta
   };
 };
 
-// CORRECTION : on ne peut pas jouer un 7 sur un Joker (jokerPendingDraw = true)
 export const isPlayable = (card: GameCard, topCard: GameCard, forcedSuit: Suit | null, pendingDraw?: number, jokerPendingDraw?: boolean): boolean => {
   if (jokerPendingDraw) {
-    return false; // Aucune carte n'est jouable, il faut piocher
+    return false;
   }
   if (pendingDraw && pendingDraw > 0) {
     return card.rank === '7';

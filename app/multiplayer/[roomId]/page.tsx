@@ -132,7 +132,7 @@ export default function MultiplayerRoomPage() {
     return () => { supabase.removeChannel(channel); };
   }, [roomId, isPlayer1]);
 
-  // ✅ MODIFIÉ : Gère la carte de démarrage (7 ou Joker)
+  // ✅ MODIFIÉ : Initialise pending_draw à 2 quand un 7 est retourné au départ
   const handleReady = async () => {
     if (!room) return;
     setActionLocked(true);
@@ -160,16 +160,15 @@ export default function MultiplayerRoomPage() {
       updateData.winner = null;
       updateData.just_drew = false;
       
-      // ✅ Règle de démarrage : si la première carte est un 7 ou Joker
       let startMessage = 'La partie commence ! Tour du Joueur 1';
       
+      // ✅ RÈGLE DE DÉMARRAGE : 7 ou Joker
       if (topCard.rank === '7') {
-        // Vérifier si le Joueur 1 a un 7 pour contrer
         const player1HasSeven = p1Hand.some(c => c.rank === '7');
         if (player1HasSeven) {
           startMessage = `La partie commence ! Un 7 est retourné. Joueur 1 a un 7 pour contrer !`;
+          updateData.pending_draw = 2; // ✅ IMPORTANT : Initialise à 2 pour permettre le cumul
         } else {
-          // Pioche automatique de 2 cartes pour le Joueur 1
           const { newDeck, newDiscard, drawnCards } = drawCardsAutomatic(deck, [topCard], 2);
           p1Hand.push(...drawnCards);
           updateData.player1_hand = p1Hand;
@@ -178,7 +177,6 @@ export default function MultiplayerRoomPage() {
           startMessage = `La partie commence ! Un 7 est retourné. Joueur 1 pioche automatiquement 2 cartes !`;
         }
       } else if (topCard.isJoker) {
-        // Pioche automatique de 5 cartes pour le Joueur 1
         const { newDeck, newDiscard, drawnCards } = drawCardsAutomatic(deck, [topCard], 5);
         p1Hand.push(...drawnCards);
         updateData.player1_hand = p1Hand;
@@ -215,7 +213,7 @@ export default function MultiplayerRoomPage() {
     let newState: GameState;
 
     if (card.rank === '7') {
-      newPendingDraw += 2;
+      newPendingDraw += 2; // ✅ Cumul avec pending_draw existant (qui peut être 2 au démarrage)
       const opponentHand = isPlayer1 ? [...gameState.player2_hand] : [...gameState.player1_hand];
       const opponentHasSeven = opponentHand.some(c => c.rank === '7');
       
@@ -262,7 +260,7 @@ export default function MultiplayerRoomPage() {
 
     let winner = gameState.winner;
     let status = gameState.status;
-    if (myHand.length === 0) { winner = myId; status = 'finished'; newMessage = ` Joueur ${myId} a gagné !`; }
+    if (myHand.length === 0) { winner = myId; status = 'finished'; newMessage = `🎉 Joueur ${myId} a gagné !`; }
     newState = { ...gameState, ...(isPlayer1 ? { player1_hand: myHand } : { player2_hand: myHand }), discard_pile: newDiscard, top_card: card, current_turn: winner ? gameState.current_turn : newCurrentTurn, forced_suit: newForcedSuit, pending_draw: newPendingDraw, winner, status, message: newMessage, just_drew: false };
     await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
   };
@@ -329,6 +327,7 @@ export default function MultiplayerRoomPage() {
     await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
   };
 
+  // ✅ MODIFIÉ : Initialise pending_draw à 2 quand un 7 est retourné au départ
   const handleNewGame = async () => {
     if (!room) return;
     setActionLocked(true);
@@ -338,26 +337,29 @@ export default function MultiplayerRoomPage() {
     const topCard = deck.shift()!;
     
     let startMessage = 'Nouvelle partie ! Tour du Joueur 1';
+    let pendingDraw = 0;
+    let currentDeck = deck;
     
-    // ✅ Règle de démarrage
+    // ✅ RÈGLE DE DÉMARRAGE
     if (topCard.rank === '7') {
       const player1HasSeven = p1Hand.some(c => c.rank === '7');
       if (player1HasSeven) {
         startMessage = `Nouvelle partie ! Un 7 est retourné. Joueur 1 a un 7 pour contrer !`;
+        pendingDraw = 2; // ✅ Initialise à 2 pour permettre le cumul
       } else {
         const { newDeck, newDiscard, drawnCards } = drawCardsAutomatic(deck, [topCard], 2);
         p1Hand.push(...drawnCards);
         startMessage = `Nouvelle partie ! Un 7 est retourné. Joueur 1 pioche automatiquement 2 cartes !`;
-        deck = newDeck;
+        currentDeck = newDeck;
       }
     } else if (topCard.isJoker) {
       const { newDeck, newDiscard, drawnCards } = drawCardsAutomatic(deck, [topCard], 5);
       p1Hand.push(...drawnCards);
       startMessage = `Nouvelle partie ! Un Joker est retourné. Joueur 1 pioche automatiquement 5 cartes !`;
-      deck = newDeck;
+      currentDeck = newDeck;
     }
     
-    const newState: GameState = { status: 'playing', player1_ready: true, player2_ready: true, current_turn: 1, player1_hand: p1Hand, player2_hand: p2Hand, deck, discard_pile: [topCard], top_card: topCard, forced_suit: null, pending_draw: 0, winner: null, message: startMessage, just_drew: false };
+    const newState: GameState = { status: 'playing', player1_ready: true, player2_ready: true, current_turn: 1, player1_hand: p1Hand, player2_hand: p2Hand, deck: currentDeck, discard_pile: [topCard], top_card: topCard, forced_suit: null, pending_draw: pendingDraw, winner: null, message: startMessage, just_drew: false };
     await supabase.from('match_rooms').update({ game_state: newState, status: 'playing', winner_id: null }).eq('id', roomId);
   };
 
@@ -387,7 +389,7 @@ export default function MultiplayerRoomPage() {
         <div className="bg-black/60 backdrop-blur-sm rounded-xl p-3 mb-4 text-center border-2 border-yellow-400/50">
           <p className="text-white font-bold text-sm md:text-base">{gameState?.message || 'Chargement...'}</p>
           {gameState?.forced_suit && (<p className="text-yellow-400 text-xs mt-1">Couleur imposée : {SUITS_FR[gameState.forced_suit]}</p>)}
-          {gameState?.pending_draw > 0 && (<p className="text-red-400 text-xs mt-1 font-bold animate-pulse">⚠️ OBLIGATOIRE : +{gameState.pending_draw} cartes à piocher ! (Joue un 7 pour contrer ou pioche)</p>)}
+          {gameState?.pending_draw > 0 && (<p className="text-red-400 text-xs mt-1 font-bold animate-pulse">️ OBLIGATOIRE : +{gameState.pending_draw} cartes à piocher ! (Joue un 7 pour contrer ou pioche)</p>)}
           {justDrew && (<p className="text-green-400 text-xs mt-1 font-bold animate-pulse">💡 Tu viens de piocher. Joue une carte ou passe ton tour !</p>)}
         </div>
         {!gameState || gameState.status === 'waiting' ? (
@@ -403,7 +405,7 @@ export default function MultiplayerRoomPage() {
               <div className={`flex flex-col items-center p-6 rounded-xl border-2 ${opponentReady ? 'bg-green-50 border-green-400' : 'bg-gray-50 border-gray-300'}`}>
                 <div className="w-20 h-20 rounded-full bg-red-500 flex items-center justify-center text-white text-2xl font-bold mb-3 border-4 border-white"><Users className="w-10 h-10" /></div>
                 <p className="font-bold text-gray-800">{opponentName}</p>
-                <p className="text-sm text-gray-500 mb-3">{opponentReady ? '✅ Prêt' : ' En attente...'}</p>
+                <p className="text-sm text-gray-500 mb-3">{opponentReady ? '✅ Prêt' : '⏳ En attente...'}</p>
                 <div className="w-32 h-10 bg-gray-200 rounded flex items-center justify-center text-gray-400 text-sm font-bold">{opponentReady ? 'Prêt' : 'Attente'}</div>
               </div>
             </div>
@@ -411,7 +413,7 @@ export default function MultiplayerRoomPage() {
         ) : gameState.status === 'finished' ? (
           <div className="bg-white/95 rounded-2xl p-8 shadow-2xl border-2 border-yellow-400 text-center">
             <Trophy className="w-20 h-20 mx-auto text-yellow-500 mb-4" />
-            <h2 className="text-3xl font-black mb-4">{gameState.winner === myId ? '🎉 Tu as gagné !' : '😢 Tu as perdu...'}</h2>
+            <h2 className="text-3xl font-black mb-4">{gameState.winner === myId ? ' Tu as gagné !' : '😢 Tu as perdu...'}</h2>
             <p className="text-gray-600 mb-6">Vainqueur : Joueur {gameState.winner}</p>
             <div className="space-y-3 max-w-md mx-auto">
               <Button onClick={handleNewGame} className="bg-gradient-to-b from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-black font-black border-b-4 border-yellow-800 py-6 text-lg w-full">
