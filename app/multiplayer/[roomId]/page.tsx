@@ -62,20 +62,15 @@ export default function MultiplayerRoomPage() {
     return deck;
   }
 
-  // ✅ CORRECTION ICI : Si forcedSuit existe, on NE vérifie QUE cette couleur
   function isCardPlayable(card: GameCard, topCard: GameCard | null, forcedSuit: Suit | null, pendingDraw: number = 0): boolean {
     if (pendingDraw > 0) {
       return card.rank === '7';
     }
     if (!topCard) return true;
     if (card.rank === 'Jack' || card.isJoker) return true;
-    
-    // ✅ Si une couleur est imposée, on ne peut jouer QUE cette couleur
     if (forcedSuit) {
       return card.suit === forcedSuit;
     }
-    
-    // Sinon, règles normales (même couleur ou même rang que la carte du dessus)
     if (card.suit === topCard.suit) return true;
     if (card.rank === topCard.rank) return true;
     return false;
@@ -266,6 +261,7 @@ export default function MultiplayerRoomPage() {
     await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
   };
 
+  // ✅ CORRECTION : Seul le Joker fait piocher 5 cartes, pas le Valet
   const handleChooseSuit = async (suit: Suit) => {
     if (!gameState || !pendingCard) return;
     setShowSuitPicker(false);
@@ -281,7 +277,7 @@ export default function MultiplayerRoomPage() {
     let newDeck = gameState.deck;
     let newDiscard = gameState.discard_pile;
 
-    // Si c'était un Joker, l'adversaire prend 5 cartes
+    // ✅ SEUL le Joker fait piocher 5 cartes à l'adversaire
     if (pendingCard.isJoker) {
       const drawResult = drawCardsAutomatic(gameState.deck, gameState.discard_pile, 5);
       opponentHand.push(...drawResult.drawnCards);
@@ -289,13 +285,14 @@ export default function MultiplayerRoomPage() {
       newDiscard = drawResult.newDiscard;
       newMessage += `. ${opponentName} pioche automatiquement 5 cartes !`;
     }
+    // Le Valet change juste la couleur, pas de pioche
 
     const newState: GameState = {
       ...gameState,
       ...(isPlayer1 ? { player1_hand: myHand, player2_hand: opponentHand } : { player1_hand: opponentHand, player2_hand: myHand }),
       deck: newDeck,
       discard_pile: newDiscard,
-      forced_suit: suit, // ✅ Ici on impose la couleur choisie
+      forced_suit: suit,
       current_turn: nextTurn,
       pending_draw: 0,
       message: newMessage,
@@ -425,7 +422,7 @@ export default function MultiplayerRoomPage() {
         ) : gameState.status === 'finished' ? (
           <div className="bg-white/95 rounded-2xl p-8 shadow-2xl border-2 border-yellow-400 text-center">
             <Trophy className="w-20 h-20 mx-auto text-yellow-500 mb-4" />
-            <h2 className="text-3xl font-black mb-4">{gameState.winner === myId ? '🎉 Tu as gagné !' : '😢 Tu as perdu...'}</h2>
+            <h2 className="text-3xl font-black mb-4">{gameState.winner === myId ? ' Tu as gagné !' : '😢 Tu as perdu...'}</h2>
             <p className="text-gray-600 mb-6">Vainqueur : Joueur {gameState.winner}</p>
             <div className="space-y-3 max-w-md mx-auto">
               <Button onClick={handleNewGame} className="bg-gradient-to-b from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-black font-black border-b-4 border-yellow-800 py-6 text-lg w-full">
@@ -480,7 +477,9 @@ export default function MultiplayerRoomPage() {
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
               <h3 className="text-xl font-bold text-center mb-4">Choisis une couleur</h3>
-              <p className="text-sm text-gray-600 text-center mb-4">L'adversaire devra jouer cette couleur !</p>
+              <p className="text-sm text-gray-600 text-center mb-4">
+                {pendingCard?.isJoker ? "L'adversaire recevra 5 cartes !" : "L'adversaire devra jouer cette couleur !"}
+              </p>
               <div className="grid grid-cols-2 gap-3">{(['Hearts', 'Diamonds', 'Clubs', 'Spades'] as Suit[]).map((suit) => { const count = myHand.filter(card => card.suit === suit).length; return (<button key={suit} onClick={() => handleChooseSuit(suit)} className={`p-4 rounded-xl font-bold text-white border-4 transition-transform hover:scale-105 relative ${suit === 'Hearts' ? 'bg-red-500 border-red-700' : suit === 'Diamonds' ? 'bg-blue-500 border-blue-700' : suit === 'Clubs' ? 'bg-green-600 border-green-800' : 'bg-gray-800 border-gray-900'}`}><div className="text-lg">{SUITS_FR[suit]}</div><div className="text-sm mt-1 opacity-90">{count} carte{count !== 1 ? 's' : ''}</div></button>); })}</div>
             </div>
           </div>

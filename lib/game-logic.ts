@@ -122,7 +122,7 @@ export const createInitialLocalGameState = (playerNames: string[]): LocalGameSta
   };
 };
 
-// ✅ CORRECTION ICI : Si forcedSuit existe, on NE vérifie QUE cette couleur
+// ✅ CORRECTION : Si forcedSuit existe, on NE vérifie QUE cette couleur
 export const isPlayable = (card: GameCard, topCard: GameCard, forcedSuit: Suit | null, pendingDraw?: number, jokerPendingDraw?: boolean): boolean => {
   if (jokerPendingDraw) {
     return false;
