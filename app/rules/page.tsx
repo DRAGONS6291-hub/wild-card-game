@@ -1,5 +1,5 @@
 'use client';
-import { ArrowLeft, Target, Sparkles, RefreshCw, Palette, Trophy } from 'lucide-react';
+import { ArrowLeft, Target, Sparkles, RefreshCw, Palette, Trophy, Layers } from 'lucide-react';
 import Link from 'next/link';
 
 export default function RulesPage() {
@@ -31,12 +31,33 @@ export default function RulesPage() {
 
           <div className="border-t-2 border-gray-200"></div>
 
+          {/* ✅ NOUVELLE SECTION : Règles de base */}
+          <div className="flex items-start gap-4">
+            <div className="bg-indigo-100 p-3 rounded-full flex-shrink-0"><Layers className="w-6 h-6 text-indigo-600" /></div>
+            <div>
+              <h2 className="text-xl font-black text-gray-800 mb-2">📋 Règles de Base</h2>
+              <p className="text-gray-700 mb-3">À chaque tour, vous devez poser une carte sur la défausse. Vous avez <strong>deux options</strong> :</p>
+              <div className="bg-indigo-50 border-2 border-indigo-200 rounded-lg p-4 space-y-2">
+                <p className="text-gray-700">
+                  <strong className="text-indigo-700">1. Suivre la couleur :</strong> Si la carte du dessus est un <span className="text-red-600 font-bold">Cœur</span>, vous pouvez jouer n'importe quel <span className="text-red-600 font-bold">Cœur</span> (2, 3, 4, 5, etc.).
+                </p>
+                <p className="text-gray-700">
+                  <strong className="text-indigo-700">2. Jouer le même rang :</strong> Si la carte du dessus est un <strong className="font-bold">Roi</strong>, vous pouvez jouer n'importe quel <strong className="font-bold">Roi</strong> (de n'importe quelle couleur).
+                </p>
+              </div>
+              <p className="text-gray-700 mt-3 text-sm italic">
+                💡 <strong>Exemple :</strong> Si la carte du dessus est le <span className="text-red-600 font-bold">7 de Cœur</span>, vous pouvez jouer le <span className="text-red-600 font-bold">2 de Cœur</span> (même couleur) OU le <span className="text-green-700 font-bold">7 de Trèfle</span> (même rang).
+              </p>
+            </div>
+          </div>
+
+          <div className="border-t-2 border-gray-200"></div>
+
           <div>
             <h2 className="text-xl font-black text-gray-800 mb-4 flex items-center gap-2">
               <Sparkles className="w-6 h-6 text-yellow-500" /> 🃏 Cartes Spéciales
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* ✅ MISE À JOUR ICI : ajout de la précision sur le droit de jouer ou passer son tour */}
               <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4">
                 <h3 className="font-bold text-red-700 text-lg mb-1">Le 7</h3>
                 <p className="text-sm text-gray-700">Cumule <strong>+2 cartes</strong> à piocher pour l'adversaire. L'adversaire peut contrer en jouant un autre 7 (le total devient +4, +6, etc.). Sinon, il doit piocher le total. <strong>Après avoir pioché, il peut jouer une carte ou passer son tour</strong> (indiqué dans le rectangle gris d'instructions).</p>
