@@ -6,7 +6,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { SoundButton } from '@/components/ui/SoundButton';
 import { SoundLink } from '@/components/ui/SoundLink';
 import { BannerAd } from '@/components/ads/BannerAd';
-import { Play, Trophy, User, Settings, LogOut, Heart, Club, Diamond, Sword } from 'lucide-react'; // ← SWORD AJOUTÉ ICI
+import { Play, Trophy, User, Settings, LogOut, Heart, Club, Diamond, Sword, BookOpen } from 'lucide-react';
 
 export default function MenuPage() {
   const router = useRouter();
@@ -121,7 +121,6 @@ export default function MenuPage() {
 
           {/* Autres boutons - Grille responsive */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {/* NOUVEAU BOUTON MULTIJOUER */}
             <SoundLink href="/multiplayer" className="w-full">
               <button className="w-full bg-gradient-to-b from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white font-bold border-b-4 border-purple-900 shadow-lg py-4 flex items-center justify-center gap-2">
                 <Sword className="w-5 h-5" /> Multijoueur
@@ -137,6 +136,13 @@ export default function MenuPage() {
             <SoundLink href="/settings" className="w-full">
               <button className="w-full bg-gradient-to-b from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 text-white font-bold border-b-4 border-blue-900 shadow-lg py-4 flex items-center justify-center gap-2">
                 <Settings className="w-5 h-5" /> Paramètres
+              </button>
+            </SoundLink>
+
+            {/* ✅ NOUVEAU BOUTON RÈGLES DU JEU */}
+            <SoundLink href="/rules" className="w-full">
+              <button className="w-full bg-gradient-to-b from-indigo-500 to-indigo-700 hover:from-indigo-600 hover:to-indigo-800 text-white font-bold border-b-4 border-indigo-900 shadow-lg py-4 flex items-center justify-center gap-2">
+                <BookOpen className="w-5 h-5" /> Règles du jeu
               </button>
             </SoundLink>
 
