@@ -12,3 +12,13 @@ export function getLevelInfo(xp: number) {
     progress: ((safeXp % 100) / 100) * 100,
   };
 }
+
+// ✅ Fonction manquante : titre du niveau
+export function getTitleForLevel(level: number): string {
+  const titles = [
+    'Débutant', 'Novice', 'Apprenti', 'Joueur', 'Amateur',
+    'Intermédiaire', 'Confirmé', 'Expert', 'Maître', 'Grand Maître',
+    'Légende', 'Mythique', 'Divin', 'Immortel', 'Transcendant'
+  ];
+  return titles[Math.min(level - 1, titles.length - 1)] || 'Légende';
+}

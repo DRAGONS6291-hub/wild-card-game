@@ -68,19 +68,20 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
           
           const { data: leaderboardData } = await supabase.from('leaderboard').select('wins, total_games').eq('id', userId).single();
           
-          // ✅ SÉCURITÉ : Try/catch pour les succès afin d'éviter tout plantage
           let newlyUnlocked: string[] = [];
           try {
-            const { checkAndUnlockAchievements } = await import('@/lib/achievements');
-            newlyUnlocked = await checkAndUnlockAchievements(userId, {
-              wins: isWin ? (leaderboardData?.wins || 0) + 1 : (leaderboardData?.wins || 0),
-              totalGames: (leaderboardData?.total_games || 0) + 1,
-              level: newLevel, 
-              totalXp: newTotalXp, 
-              wonOnHard: isWin && difficulty === 'hard',
-            });
+            const achievementsModule = await import('@/lib/achievements');
+            if (achievementsModule.checkAndUnlockAchievements) {
+              newlyUnlocked = await achievementsModule.checkAndUnlockAchievements(userId, {
+                wins: isWin ? (leaderboardData?.wins || 0) + 1 : (leaderboardData?.wins || 0),
+                totalGames: (leaderboardData?.total_games || 0) + 1,
+                level: newLevel, 
+                totalXp: newTotalXp, 
+                wonOnHard: isWin && difficulty === 'hard',
+              });
+            }
           } catch (e) {
-            console.log('Système de succès non disponible ou en cours de développement');
+            console.log('Système de succès non disponible:', e);
           }
 
           setScoreSaved(true);
@@ -156,12 +157,12 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
   const getInstructionMessage = () => {
     if (winner) return null;
     if (autoDrawMessage) return ` ${autoDrawMessage}`;
-    if (jokerPendingDraw && pendingDraw > 0) return `⚠️ Pioche ${pendingDraw} cartes (Joker)`;
+    if (jokerPendingDraw && pendingDraw > 0) return `️ Pioche ${pendingDraw} cartes (Joker)`;
     if (pendingDraw > 0) {
       if (canPlayerPlaySeven) return `⚠️ Joue un 7 ou pioche ${pendingDraw} cartes`;
       return `️ Pioche ${pendingDraw} cartes automatiquement`;
     }
-    if (forcedSuit) return `🎯 Joue une carte de ${SUITS_FR[forcedSuit]}`;
+    if (forcedSuit) return ` Joue une carte de ${SUITS_FR[forcedSuit]}`;
     if (isPending) return `⏳ L'IA réfléchit...`;
     if (isPlayerTurn) return `▶️ À ton tour ! Joue une carte ou pioche`;
     return null;
@@ -216,6 +217,7 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
         </div>
       </div>
 
+      {/* ✅ JOUEUR EN BAS - STYLE MULTIJOUER */}
       <div className="absolute bottom-0 left-0 right-0 z-10 flex flex-col items-center pb-4 px-4">
         <div className="relative mb-2 flex items-center gap-3 w-full max-w-md justify-center">
           <div className={`w-16 h-16 md:w-20 md:h-20 rounded-full border-4 ${isPlayerTurn ? 'border-yellow-400 animate-pulse' : 'border-white/50'} overflow-hidden shadow-2xl bg-gray-800 flex-shrink-0`}>
@@ -229,6 +231,7 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
           {isPlayerTurn && <div className="absolute -top-1 right-0 md:-right-1 bg-yellow-400 rounded-full p-1.5 shadow-lg animate-pulse"><Trophy className="w-5 h-5 text-red-700" /></div>}
         </div>
 
+        {/* ✅ RECTANGLE GRIS D'INSTRUCTION */}
         {instructionMessage && (
           <div className="mb-3 w-full max-w-md bg-gray-700/90 backdrop-blur-sm rounded-lg px-4 py-2.5 border-2 border-gray-500 shadow-lg">
             <p className="text-white text-sm md:text-base font-bold text-center">
@@ -237,12 +240,21 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
           </div>
         )}
 
-        <div className="flex justify-center items-end -space-x-4 sm:-space-x-6 md:-space-x-8 px-2 sm:px-4 w-full overflow-x-auto pb-2">
-          {sortedPlayerHand.map((card, index) => (
-            <div key={card.id} style={{ transform: `rotate(${(index - sortedPlayerHand.length/2) * 4}deg) translateY(${Math.abs(index - sortedPlayerHand.length/2) * 2}px)`, zIndex: index }} className="flex-shrink-0">
-              <PlayingCard card={card} isPlayable={isPlayable(card, topCard, forcedSuit, pendingDraw, jokerPendingDraw) && isPlayerTurn} onPlay={handlePlayCard} className="w-16 h-24 md:w-20 md:h-28" />
-            </div>
-          ))}
+        {/* ✅ CARTES ALIGNÉES CÔTE À CÔTE (style multijoueur) */}
+        <div className="flex justify-center items-end gap-2 flex-wrap mb-3 px-4 w-full overflow-x-auto pb-2">
+          {sortedPlayerHand.map((card) => {
+            const playable = isPlayable(card, topCard, forcedSuit, pendingDraw, jokerPendingDraw) && isPlayerTurn;
+            return (
+              <div key={card.id} className="flex-shrink-0">
+                <PlayingCard 
+                  card={card} 
+                  isPlayable={playable} 
+                  onPlay={handlePlayCard} 
+                  className="w-16 h-24 md:w-20 md:h-28" 
+                />
+              </div>
+            );
+          })}
         </div>
 
         <div className="flex gap-3 mt-4">
