@@ -26,6 +26,12 @@ interface GameState {
   just_drew: boolean;
 }
 
+// ✅ ORDRE DES RANGS POUR LE TRI
+const RANK_ORDER: Record<string, number> = {
+  '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10,
+  'Jack': 11, 'Queen': 12, 'King': 13, 'Ace': 14, 'Joker': 15
+};
+
 export default function MultiplayerRoomPage() {
   const router = useRouter();
   const params = useParams();
@@ -65,14 +71,9 @@ export default function MultiplayerRoomPage() {
     return deck;
   }
 
-  // ✅ RÈGLES COMPLÈTES CORRIGÉES DU WILD CARD
   function isCardPlayable(card: GameCard, topCard: GameCard | null, forcedSuit: Suit | null, pendingDraw: number = 0): boolean {
-    // Règle 1 : Si cumul de 7 en cours, on ne peut jouer QUE des 7
     if (pendingDraw > 0) return card.rank === '7';
-    
     if (!topCard) return true;
-    
-    // Règle 2 : Joker et Valet sont TOUJOURS jouables (cartes wild)
     if (card.isJoker || card.rank === 'Jack') return true;
     
     const cardRank = String(card.rank || '').trim();
@@ -80,17 +81,11 @@ export default function MultiplayerRoomPage() {
     const cardSuit = String(card.suit || '').trim();
     const topSuit = String(topCard.suit || '').trim();
     
-    // Règle 3 : Si une couleur est imposée (après Valet/Joker), on peut jouer :
-    // - Une carte de cette couleur (sauf un 7 qui déclencherait un cumul)
-    // - OU une carte du même rang que la carte du dessus
     if (forcedSuit) {
-      // Un 7 ne peut PAS être joué comme carte "normale" de la couleur imposée
-      // Il doit être joué uniquement s'il y a un cumul en cours (géré par Règle 1)
       if (card.rank === '7') return false;
       return card.suit === forcedSuit || cardRank === topRank;
     }
     
-    // Règle 4 : Sinon, même couleur OU même rang que la carte du dessus
     return cardSuit === topSuit || cardRank === topRank;
   }
 
@@ -216,7 +211,6 @@ export default function MultiplayerRoomPage() {
     await supabase.from('match_rooms').update({ game_state: updateData }).eq('id', roomId);
   };
 
-  // ✅ handlePlayCard COMPLÈTEMENT REÉCRIT AVEC TOUTES LES RÈGLES
   const handlePlayCard = async (card: GameCard) => {
     if (!gameState || actionLocked) return;
     const myId: 1 | 2 = isPlayer1 ? 1 : 2;
@@ -233,17 +227,14 @@ export default function MultiplayerRoomPage() {
     const newDiscard = [...gameState.discard_pile, card];
     const nextTurn: 1 | 2 = myId === 1 ? 2 : 1;
     
-    // ✅ RÈGLE IMPORTANTE : forced_suit est TOUJOURS reset à null après avoir joué une carte
-    // (sauf pendant le suit picker du Valet/Joker)
     let newMessage = `Joueur ${myId} joue ${card.rank}`;
     let newPendingDraw = gameState.pending_draw;
     let newCurrentTurn = nextTurn;
 
-    // === CARTE SPÉCIALE : 7 ===
     if (card.rank === '7') {
       newPendingDraw += 2;
       newMessage = `7 joué ! +${newPendingDraw} cartes à piocher. ${opponentName} doit jouer un 7 ou piocher !`;
-      newCurrentTurn = nextTurn; // Tour passe à l'adversaire
+      newCurrentTurn = nextTurn;
       
       const newState: GameState = {
         ...gameState,
@@ -251,7 +242,7 @@ export default function MultiplayerRoomPage() {
         discard_pile: newDiscard,
         top_card: card,
         current_turn: newCurrentTurn,
-        forced_suit: null, // ✅ Reset
+        forced_suit: null,
         pending_draw: newPendingDraw,
         winner: gameState.winner,
         status: gameState.status,
@@ -262,10 +253,9 @@ export default function MultiplayerRoomPage() {
       return;
     }
     
-    // === CARTE SPÉCIALE : 10 ===
     if (card.rank === '10') {
       newMessage = '10 joué ! Tour de l\'adversaire sauté. Vous pouvez rejouer ou passer votre tour.';
-      newCurrentTurn = myId; // ✅ On garde le tour
+      newCurrentTurn = myId;
       
       const newState: GameState = {
         ...gameState,
@@ -273,7 +263,7 @@ export default function MultiplayerRoomPage() {
         discard_pile: newDiscard,
         top_card: card,
         current_turn: newCurrentTurn,
-        forced_suit: null, // ✅ Reset (c'était le bug !)
+        forced_suit: null,
         pending_draw: 0,
         winner: gameState.winner,
         status: gameState.status,
@@ -284,7 +274,6 @@ export default function MultiplayerRoomPage() {
       return;
     }
     
-    // === CARTE SPÉCIALE : Valet ou Joker ===
     if (card.rank === 'Jack' || card.isJoker) {
       setPendingCard(card);
       setShowSuitPicker(true);
@@ -294,7 +283,7 @@ export default function MultiplayerRoomPage() {
         discard_pile: newDiscard,
         top_card: card,
         pending_draw: 0,
-        forced_suit: null, // ✅ Pas de couleur imposée pendant le choix
+        forced_suit: null,
         message: newMessage + ' - Choisis une couleur...',
         just_drew: false,
       };
@@ -302,13 +291,12 @@ export default function MultiplayerRoomPage() {
       return;
     }
 
-    // === CARTE NORMALE ===
     let winner = gameState.winner;
     let status = gameState.status;
     if (myHand.length === 0) {
       winner = myId;
       status = 'finished';
-      newMessage = `🎉 Joueur ${myId} a gagné !`;
+      newMessage = ` Joueur ${myId} a gagné !`;
     }
     
     const newState: GameState = {
@@ -317,7 +305,7 @@ export default function MultiplayerRoomPage() {
       discard_pile: newDiscard,
       top_card: card,
       current_turn: winner ? gameState.current_turn : newCurrentTurn,
-      forced_suit: null, // ✅ Reset après carte normale (c'était le bug !)
+      forced_suit: null,
       pending_draw: 0,
       winner,
       status,
@@ -338,7 +326,6 @@ export default function MultiplayerRoomPage() {
     let newDeck = gameState.deck;
     let newDiscard = gameState.discard_pile;
 
-    // Règle du Joker : adversaire pioche 5 cartes
     if (pendingCard.isJoker) {
       const drawResult = drawCardsAutomatic(gameState.deck, gameState.discard_pile, 5);
       opponentHand.push(...drawResult.drawnCards);
@@ -352,7 +339,7 @@ export default function MultiplayerRoomPage() {
       ...(isPlayer1 ? { player1_hand: myHand, player2_hand: opponentHand } : { player1_hand: opponentHand, player2_hand: myHand }),
       deck: newDeck,
       discard_pile: newDiscard,
-      forced_suit: suit, // ✅ Couleur imposée pour le prochain joueur
+      forced_suit: suit,
       current_turn: nextTurn,
       pending_draw: 0,
       message: newMessage,
@@ -379,7 +366,7 @@ export default function MultiplayerRoomPage() {
       deck: newDeck,
       discard_pile: newDiscard,
       pending_draw: 0,
-      forced_suit: null, // ✅ Reset après pioche
+      forced_suit: null,
       message: `Joueur ${myId} pioche ${cardsToDraw} carte(s). Joue une carte ou passe ton tour.`,
       just_drew: true,
       current_turn: myId,
@@ -396,7 +383,7 @@ export default function MultiplayerRoomPage() {
     const newState: GameState = {
       ...gameState,
       current_turn: nextTurn,
-      forced_suit: null, // ✅ Reset
+      forced_suit: null,
       message: `Joueur ${myId} passe son tour. Au tour du Joueur ${nextTurn} !`,
       just_drew: false,
     };
@@ -460,6 +447,13 @@ export default function MultiplayerRoomPage() {
   const isMyTurn = gameState?.current_turn === myId && gameState?.status === 'playing';
   const justDrew = gameState?.just_drew && isMyTurn;
 
+  // ✅ TRI DES CARTES PAR RANG
+  const sortedMyHand = [...myHand].sort((a, b) => {
+    const rankA = RANK_ORDER[a.rank] || 0;
+    const rankB = RANK_ORDER[b.rank] || 0;
+    return rankA - rankB;
+  });
+
   const getInstructionMessage = () => {
     if (!isMyTurn) return "Attends ton tour...";
     if (gameState?.pending_draw && gameState.pending_draw > 0) {
@@ -504,7 +498,7 @@ export default function MultiplayerRoomPage() {
                   <img src={opponentAvatar} alt={opponentName} className="w-full h-full object-cover" />
                 </div>
                 <p className="font-bold text-gray-800">{opponentName}</p>
-                <p className="text-sm text-gray-500 mb-3">{opponentReady ? '✅ Prêt' : '⏳ En attente...'}</p>
+                <p className="text-sm text-gray-500 mb-3">{opponentReady ? '✅ Prêt' : ' En attente...'}</p>
                 <div className="w-32 h-10 bg-gray-200 rounded flex items-center justify-center text-gray-400 text-sm font-bold">{opponentReady ? 'Prêt' : 'Attente'}</div>
               </div>
             </div>
@@ -564,8 +558,9 @@ export default function MultiplayerRoomPage() {
                 {isMyTurn && <span className="bg-green-400 text-black text-xs font-bold px-3 py-1.5 rounded-full animate-pulse flex-shrink-0">Ton tour !</span>}
               </div>
               
+              {/* ✅ CARTES TRIÉES PAR RANG */}
               <div className="flex justify-center gap-1 flex-wrap mb-3">
-                {myHand.map((card) => {
+                {sortedMyHand.map((card) => {
                   const playable = isMyTurn && isCardPlayable(card, gameState.top_card, gameState.forced_suit, gameState.pending_draw);
                   return <PlayingCard key={card.id} card={card} isPlayable={playable} onPlay={handlePlayCard} className="w-14 h-20 md:w-20 md:h-28" />;
                 })}
