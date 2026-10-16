@@ -186,16 +186,17 @@ export default function MultiplayerRoomPage() {
     return () => { supabase.removeChannel(channel); };
   }, [roomId, isPlayer1]);
 
-  // ✅ SAUVEGARDE SCORE & XP - CORRIGÉ
+  // ✅ SAUVEGARDE SCORE & XP - CORRIGÉ AVEC setScoreSaved(false)
   useEffect(() => {
-    // ✅ Reset des affichages quand la partie n'est pas terminée
+    // ✅ Quand la partie n'est plus terminée, on reset TOUT
     if (gameState?.status !== 'finished') {
       setXpGained(null);
       setNewLevel(null);
+      setScoreSaved(false); // ✅ C'EST ICI LE BUG ! Il faut remettre scoreSaved à false
       return;
     }
     
-    if (gameState?.status === 'finished' && profile && userId && !scoreSaved) {
+    if (profile && userId && !scoreSaved) {
       const isWin = gameState.winner === (isPlayer1 ? 1 : 2);
       
       if (isWin) {
