@@ -1,78 +1,29 @@
-// Système de niveaux et XP
-
-export interface LevelInfo {
-  level: number;
-  currentXp: number;
-  xpForNextLevel: number;
-  progress: number; // 0 à 100
-  title: string;
-}
-
-// Titres selon le niveau
-export const LEVEL_TITLES: Record<number, string> = {
-  1: 'Débutant',
-  2: 'Novice',
-  3: 'Apprenti',
-  5: 'Joueur',
-  7: 'Expert',
-  10: 'Maître',
-  15: 'Grand Maître',
-  20: 'Champion',
-  25: 'Légende',
-  30: 'Mythique',
-  50: 'Divin',
-};
-
-export function getTitleForLevel(level: number): string {
-  let title = 'Débutant';
-  for (const [lvl, t] of Object.entries(LEVEL_TITLES)) {
-    if (level >= parseInt(lvl)) title = t;
+// ✅ Calcul d'XP synchronisé : +20 pour une victoire, -2 pour une défaite
+export function calculateXpReward(isWin: boolean, difficulty: string): number {
+  if (isWin) {
+    return 20; // +20 XP pour une victoire
+  } else {
+    return -2; // -2 XP pour une défaite
   }
-  return title;
 }
 
-// XP nécessaire pour le niveau suivant (formule progressive)
-export function xpForLevel(level: number): number {
-  return Math.floor(100 * Math.pow(level, 1.5));
-}
-
-// Calculer les infos de niveau
-export function getLevelInfo(totalXp: number): LevelInfo {
-  let level = 1;
-  let xpRemaining = totalXp;
-  
-  while (xpRemaining >= xpForLevel(level)) {
-    xpRemaining -= xpForLevel(level);
-    level++;
-  }
-  
-  const nextLevelXp = xpForLevel(level);
-  const progress = (xpRemaining / nextLevelXp) * 100;
+// ✅ Calcul du niveau (1 niveau tous les 100 XP, niveau minimum 1)
+export function getLevelInfo(xp: number) {
+  // On s'assure que l'XP ne descend pas en dessous de 0 pour le calcul du niveau
+  const safeXp = Math.max(0, xp);
+  const level = Math.floor(safeXp / 100) + 1;
+  const xpInCurrentLevel = safeXp % 100;
   
   return {
     level,
-    currentXp: xpRemaining,
-    xpForNextLevel: nextLevelXp,
-    progress: Math.min(progress, 100),
-    title: getTitleForLevel(level),
+    currentXp: xpInCurrentLevel,
+    requiredXp: 100,
+    progress: (xpInCurrentLevel / 100) * 100,
   };
 }
 
-// XP gagné/perdu selon le résultat
-export function calculateXpReward(
-  won: boolean, 
-  difficulty: 'easy' | 'medium' | 'hard'
-): number {
-  if (won) {
-    // Victoire : gain d'XP selon la difficulté
-    const baseXp = 50;
-    const difficultyMultiplier = 
-      difficulty === 'easy' ? 1 : 
-      difficulty === 'medium' ? 1.5 : 2;
-    
-    return Math.floor(baseXp * difficultyMultiplier);
-  } else {
-    // Défaite : perte d'XP (toujours -10, peu importe la difficulté)
-    return -10;
-  }
+// ✅ Fonction optionnelle pour vérifier les succès (à adapter selon ton fichier achievements)
+export async function checkAndUnlockAchievements(userId: string, stats: any) {
+  // Cette fonction est appelée depuis le jeu, elle peut rester vide ou contenir ta logique de succès
+  return [];
 }

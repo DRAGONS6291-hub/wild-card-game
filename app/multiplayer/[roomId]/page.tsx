@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { PlayingCard } from '@/components/game/PlayingCard';
 import { GameCard, Suit, SUITS_FR } from '@/lib/game-types';
 import { useToast } from '@/hooks/use-toast';
+import { calculateXpReward, getLevelInfo } from '@/lib/level-system';
 
 const RANK_ORDER: Record<string, number> = {
   '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10,
@@ -172,7 +173,7 @@ export default function MultiplayerRoomPage() {
     return () => { supabase.removeChannel(channel); };
   }, [roomId, isPlayer1]);
 
-  // ✅ SAUVEGARDE DU SCORE, XP ET NIVEAU EN FIN DE PARTIE (Synchronisé avec le local)
+  // ✅ SAUVEGARDE DU SCORE, XP ET NIVEAU EN FIN DE PARTIE (Synchronisé Local & Multi)
   useEffect(() => {
     if (gameState?.status === 'finished' && profile && userId && !scoreSaved) {
       const saveScoreAndXp = async () => {
@@ -196,19 +197,13 @@ export default function MultiplayerRoomPage() {
           console.error('Erreur sauvegarde score:', scoreError);
           toast({ title: 'Erreur', description: 'Impossible de sauvegarder le score.', variant: 'destructive' });
         } else {
-          // 2. Calculer XP (50 XP victoire, 15 XP défaite en multijoueur)
-          const xpReward = isWin ? 50 : 15;
+          // 2. Calculer XP (+20 victoire, -2 défaite)
+          const xpReward = calculateXpReward(isWin, difficulty);
           const currentXp = profile.xp || 0;
-          const newTotalXp = Math.max(0, currentXp + xpReward);
+          const newTotalXp = Math.max(0, currentXp + xpReward); // Empêche les XP négatifs
           
-          let newLevel = 1;
-          try {
-            const { getLevelInfo } = await import('@/lib/level-system');
-            const levelInfo = getLevelInfo(newTotalXp);
-            newLevel = levelInfo.level;
-          } catch (e) {
-            newLevel = Math.floor(newTotalXp / 100) + 1;
-          }
+          const levelInfo = getLevelInfo(newTotalXp);
+          const newLevel = levelInfo.level;
 
           await supabase
             .from('profiles')
