@@ -4,7 +4,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, Users, Trophy, Sparkles, Home, SkipForward } from 'lucide-react';
+import { ArrowLeft, Loader2, Users, Trophy, Sparkles, Home, SkipForward, TrendingUp, TrendingDown } from 'lucide-react';
 import Link from 'next/link';
 import { PlayingCard } from '@/components/game/PlayingCard';
 import { Confetti } from '@/components/game/Confetti';
@@ -55,6 +55,8 @@ export default function MultiplayerRoomPage() {
   const [actionLocked, setActionLocked] = useState(false);
   const [scoreSaved, setScoreSaved] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [xpGained, setXpGained] = useState<number | null>(null);
+  const [newLevel, setNewLevel] = useState<number | null>(null);
 
   const playerAvatar = profile?.avatar_url || `https://i.pravatar.cc/150?u=${userId}`;
 
@@ -183,6 +185,7 @@ export default function MultiplayerRoomPage() {
     return () => { supabase.removeChannel(channel); };
   }, [roomId, isPlayer1]);
 
+  // ✅ SAUVEGARDE + CALCUL XP + AFFICHAGE
   useEffect(() => {
     if (gameState?.status === 'finished' && profile && userId && !scoreSaved) {
       const isWin = gameState.winner === (isPlayer1 ? 1 : 2);
@@ -202,10 +205,12 @@ export default function MultiplayerRoomPage() {
           });
 
           const xpReward = calculateXpReward(isWin);
-          const newTotalXp = Math.max(0, (profile.xp || 0) + xpReward);
-          const newLevel = getLevelInfo(newTotalXp).level;
+          const currentXp = profile.xp || 0;
+          const newTotalXp = Math.max(0, currentXp + xpReward);
+          const levelInfo = getLevelInfo(newTotalXp);
+          const calculatedNewLevel = levelInfo.level;
 
-          await supabase.from('profiles').update({ xp: newTotalXp, level: newLevel }).eq('id', userId);
+          await supabase.from('profiles').update({ xp: newTotalXp, level: calculatedNewLevel }).eq('id', userId);
 
           const { data: lbData } = await supabase.from('leaderboard').select('wins, total_games').eq('id', userId).single();
           await supabase.from('leaderboard').update({
@@ -213,6 +218,9 @@ export default function MultiplayerRoomPage() {
             total_games: (lbData?.total_games || 0) + 1
           }).eq('id', userId);
 
+          // ✅ Stocker les XP et le nouveau niveau pour l'affichage
+          setXpGained(xpReward);
+          setNewLevel(calculatedNewLevel);
           setScoreSaved(true);
         } catch (err) { console.error('Erreur sauvegarde:', err); }
       };
@@ -296,7 +304,6 @@ export default function MultiplayerRoomPage() {
     let newMessage = `Joueur ${myId} joue ${card.rank}`;
     let newPendingDraw = gameState.pending_draw;
     let newCurrentTurn = nextTurn;
-    // ✅ La couleur imposée est remise à null par défaut, sauf si on joue un Valet/Joker
     let newForcedSuit: Suit | null = null;
 
     if (card.rank === '7') {
@@ -406,7 +413,7 @@ export default function MultiplayerRoomPage() {
       ...(isPlayer1 ? { player1_hand: currentHand, player2_hand: opponentHandLocal } : { player1_hand: opponentHandLocal, player2_hand: currentHand }),
       deck: newDeck,
       discard_pile: newDiscard,
-      forced_suit: suit, // ✅ Couleur imposée pour le prochain joueur
+      forced_suit: suit,
       current_turn: nextTurn,
       pending_draw: 0,
       message: newMessage,
@@ -416,7 +423,6 @@ export default function MultiplayerRoomPage() {
     await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
   };
 
-  // ✅ CORRECTION : La couleur imposée (forced_suit) est CONSERVÉE après la pioche
   const handleDraw = async () => {
     if (!gameState || actionLocked) return;
     if (gameState.current_turn !== myId) return;
@@ -433,7 +439,7 @@ export default function MultiplayerRoomPage() {
       deck: newDeck,
       discard_pile: newDiscard,
       pending_draw: 0,
-      forced_suit: gameState.forced_suit, // ✅ GARDE la couleur imposée (ne la remet pas à null)
+      forced_suit: gameState.forced_suit,
       message: `Joueur ${myId} pioche ${cardsToDraw} carte(s). Joue une carte ou passe ton tour.`,
       just_drew: true,
       current_turn: myId,
@@ -449,7 +455,7 @@ export default function MultiplayerRoomPage() {
     const newState: GameState = {
       ...gameState,
       current_turn: nextTurn,
-      forced_suit: null, // ✅ Reset la couleur imposée quand on passe son tour
+      forced_suit: null,
       message: `Joueur ${myId} passe son tour. Au tour du Joueur ${nextTurn} !`,
       just_drew: false,
     };
@@ -460,6 +466,8 @@ export default function MultiplayerRoomPage() {
     if (!room) return;
     setScoreSaved(false);
     setShowConfetti(false);
+    setXpGained(null);
+    setNewLevel(null);
     setActionLocked(true);
     const deck = createShuffledDeck();
     const p1Hand = deck.splice(0, 7);
@@ -534,7 +542,7 @@ export default function MultiplayerRoomPage() {
       <div className="relative z-10 max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-4 pt-4">
           <Link href="/menu" className="flex items-center gap-2 text-white font-bold hover:text-yellow-400"><ArrowLeft className="w-5 h-5" /> Quitter</Link>
-          <h1 className="text-xl md:text-2xl font-black text-yellow-400">️ MULTIJOUER</h1>
+          <h1 className="text-xl md:text-2xl font-black text-yellow-400">⚔️ MULTIJOUER</h1>
           <div className="w-20"></div>
         </div>
         
@@ -546,7 +554,7 @@ export default function MultiplayerRoomPage() {
                   <img src={playerAvatar} alt={profile?.pseudo || 'Toi'} className="w-full h-full object-cover" />
                 </div>
                 <p className="font-bold text-gray-800">{profile?.pseudo || 'Toi'}</p>
-                <p className="text-sm text-gray-500 mb-3">{isReady ? '✅ Prêt' : ' Pas prêt'}</p>
+                <p className="text-sm text-gray-500 mb-3">{isReady ? '✅ Prêt' : '❌ Pas prêt'}</p>
                 <Button onClick={handleReady} className={isReady ? 'bg-gray-400' : 'bg-green-500 hover:bg-green-600'}>{isReady ? 'Annuler' : 'Je suis prêt !'}</Button>
               </div>
               <div className="text-4xl font-black text-yellow-500">VS</div>
@@ -555,7 +563,7 @@ export default function MultiplayerRoomPage() {
                   <img src={opponentAvatar} alt={opponentName} className="w-full h-full object-cover" />
                 </div>
                 <p className="font-bold text-gray-800">{opponentName}</p>
-                <p className="text-sm text-gray-500 mb-3">{opponentReady ? '✅ Prêt' : ' En attente...'}</p>
+                <p className="text-sm text-gray-500 mb-3">{opponentReady ? '✅ Prêt' : '⏳ En attente...'}</p>
                 <div className="w-32 h-10 bg-gray-200 rounded flex items-center justify-center text-gray-400 text-sm font-bold">{opponentReady ? 'Prêt' : 'Attente'}</div>
               </div>
             </div>
@@ -563,11 +571,49 @@ export default function MultiplayerRoomPage() {
         ) : gameState.status === 'finished' ? (
           <div className="bg-white/95 rounded-2xl p-8 shadow-2xl border-2 border-yellow-400 text-center">
             <Trophy className="w-20 h-20 mx-auto text-yellow-500 mb-4" />
-            <h2 className="text-3xl font-black mb-4">{gameState.winner === myId ? '🎉 Tu as gagné !' : '😢 Tu as perdu...'}</h2>
-            <p className="text-gray-600 mb-6">Vainqueur : Joueur {gameState.winner}</p>
+            <h2 className="text-3xl font-black mb-4">{gameState.winner === myId ? ' Tu as gagné !' : '😢 Tu as perdu...'}</h2>
+            <p className="text-gray-600 mb-4">Vainqueur : Joueur {gameState.winner}</p>
+            
+            {/* ✅ AFFICHAGE DES XP GAGNÉS/PERDUS */}
+            {xpGained !== null && (
+              <div className="mb-6">
+                <div className={`inline-flex items-center gap-2 px-6 py-3 rounded-xl border-2 ${
+                  xpGained > 0 
+                    ? 'bg-green-50 border-green-400' 
+                    : 'bg-red-50 border-red-400'
+                }`}>
+                  {xpGained > 0 ? (
+                    <TrendingUp className="w-6 h-6 text-green-600" />
+                  ) : (
+                    <TrendingDown className="w-6 h-6 text-red-600" />
+                  )}
+                  <div className="text-left">
+                    <p className={`text-2xl font-black ${xpGained > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {xpGained > 0 ? '+' : ''}{xpGained} XP
+                    </p>
+                    <p className="text-xs text-gray-600">
+                      {xpGained > 0 ? 'Victoire !' : 'Défaite...'}
+                    </p>
+                  </div>
+                </div>
+                {newLevel && newLevel > (profile?.level || 1) && (
+                  <div className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-yellow-100 border-2 border-yellow-400">
+                    <Sparkles className="w-5 h-5 text-yellow-600" />
+                    <p className="text-yellow-800 font-bold">
+                      Niveau {newLevel} atteint ! 
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+            
             <div className="space-y-3 max-w-md mx-auto">
-              <Button onClick={handleNewGame} className="bg-gradient-to-b from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-black font-black border-b-4 border-yellow-800 py-6 text-lg w-full"><Sparkles className="w-5 h-5 mr-2" /> Nouvelle partie</Button>
-              <Button onClick={handleQuit} variant="outline" className="w-full py-6 text-lg font-bold border-2 border-gray-300 text-gray-700 hover:bg-gray-100 hover:border-gray-400"><Home className="w-5 h-5 mr-2" /> Retour au menu</Button>
+              <Button onClick={handleNewGame} className="bg-gradient-to-b from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-black font-black border-b-4 border-yellow-800 py-6 text-lg w-full">
+                <Sparkles className="w-5 h-5 mr-2" /> Nouvelle partie
+              </Button>
+              <Button onClick={handleQuit} variant="outline" className="w-full py-6 text-lg font-bold border-2 border-gray-300 text-gray-700 hover:bg-gray-100 hover:border-gray-400">
+                <Home className="w-5 h-5 mr-2" /> Retour au menu
+              </Button>
             </div>
           </div>
         ) : (
