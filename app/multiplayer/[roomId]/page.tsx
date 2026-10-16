@@ -4,7 +4,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, Users, Trophy, Sparkles, Home, SkipForward, TrendingUp, TrendingDown } from 'lucide-react';
+import { ArrowLeft, Loader2, Trophy, Sparkles, Home, SkipForward, TrendingUp, TrendingDown } from 'lucide-react';
 import Link from 'next/link';
 import { PlayingCard } from '@/components/game/PlayingCard';
 import { Confetti } from '@/components/game/Confetti';
@@ -57,7 +57,7 @@ export default function MultiplayerRoomPage() {
   const [showConfetti, setShowConfetti] = useState(false);
   const [xpGained, setXpGained] = useState<number | null>(null);
   const [newLevel, setNewLevel] = useState<number | null>(null);
-  const [gameKey, setGameKey] = useState(0); // ✅ Identifiant unique de partie
+  const [gameKey, setGameKey] = useState(0);
 
   const playerAvatar = profile?.avatar_url || `https://i.pravatar.cc/150?u=${userId}`;
 
@@ -186,7 +186,15 @@ export default function MultiplayerRoomPage() {
     return () => { supabase.removeChannel(channel); };
   }, [roomId, isPlayer1]);
 
+  // ✅ SAUVEGARDE SCORE & XP - CORRIGÉ
   useEffect(() => {
+    // ✅ Reset des affichages quand la partie n'est pas terminée
+    if (gameState?.status !== 'finished') {
+      setXpGained(null);
+      setNewLevel(null);
+      return;
+    }
+    
     if (gameState?.status === 'finished' && profile && userId && !scoreSaved) {
       const isWin = gameState.winner === (isPlayer1 ? 1 : 2);
       
@@ -490,7 +498,7 @@ export default function MultiplayerRoomPage() {
     setShowConfetti(false);
     setXpGained(null);
     setNewLevel(null);
-    setGameKey(k => k + 1); // ✅ Incrémente l'identifiant pour forcer le re-déclenchement
+    setGameKey(k => k + 1);
     setActionLocked(true);
     const deck = createShuffledDeck();
     const p1Hand = deck.splice(0, 7);
