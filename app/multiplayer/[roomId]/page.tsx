@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, Loader2, Users, Trophy, Sparkles, Home, SkipForward } from 'lucide-react';
 import Link from 'next/link';
 import { PlayingCard } from '@/components/game/PlayingCard';
+import { Confetti } from '@/components/game/Confetti';
 import { GameCard, Suit, SUITS_FR } from '@/lib/game-types';
 import { useToast } from '@/hooks/use-toast';
 import { useSound } from '@/hooks/useSound';
@@ -53,6 +54,7 @@ export default function MultiplayerRoomPage() {
   const [pendingCard, setPendingCard] = useState<GameCard | null>(null);
   const [actionLocked, setActionLocked] = useState(false);
   const [scoreSaved, setScoreSaved] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
 
   const playerAvatar = profile?.avatar_url || `https://i.pravatar.cc/150?u=${userId}`;
 
@@ -181,10 +183,20 @@ export default function MultiplayerRoomPage() {
     return () => { supabase.removeChannel(channel); };
   }, [roomId, isPlayer1]);
 
+  // ✅ CONFETTIS + SONS QUAND ON GAGNE
   useEffect(() => {
     if (gameState?.status === 'finished' && profile && userId && !scoreSaved) {
+      const isWin = gameState.winner === (isPlayer1 ? 1 : 2);
+      
+      if (isWin) {
+        setShowConfetti(true);
+        playVictory();
+        setTimeout(() => setShowConfetti(false), 6000);
+      } else {
+        playDefeat();
+      }
+
       const saveScoreAndXp = async () => {
-        const isWin = gameState.winner === (isPlayer1 ? 1 : 2);
         try {
           await supabase.from('scores').insert({
             user_id: userId, pseudo: profile.pseudo, difficulty: 'multiplayer', result: isWin ? 'win' : 'loss', cards_remaining: isWin ? 0 : myHand.length
@@ -201,13 +213,6 @@ export default function MultiplayerRoomPage() {
             wins: isWin ? (lbData?.wins || 0) + 1 : (lbData?.wins || 0),
             total_games: (lbData?.total_games || 0) + 1
           }).eq('id', userId);
-
-          // ✅ Jouer le son de victoire ou défaite
-          if (isWin) {
-            playVictory();
-          } else {
-            playDefeat();
-          }
 
           setScoreSaved(true);
         } catch (err) { console.error('Erreur sauvegarde:', err); }
@@ -280,7 +285,7 @@ export default function MultiplayerRoomPage() {
     const playable = isCardPlayable(card, gameState.top_card, gameState.forced_suit, gameState.pending_draw);
     if (!playable) return;
     
-    playCard(); // ✅ Son de carte jouée
+    playCard();
     setActionLocked(true);
     const currentHand = isPlayer1 ? [...(gameState.player1_hand || [])] : [...(gameState.player2_hand || [])];
     const cardIndex = currentHand.findIndex(c => c.id === card.id);
@@ -452,6 +457,7 @@ export default function MultiplayerRoomPage() {
   const handleNewGame = async () => {
     if (!room) return;
     setScoreSaved(false);
+    setShowConfetti(false);
     setActionLocked(true);
     const deck = createShuffledDeck();
     const p1Hand = deck.splice(0, 7);
@@ -519,6 +525,8 @@ export default function MultiplayerRoomPage() {
 
   return (
     <div className="relative min-h-screen p-4 overflow-hidden bg-[radial-gradient(ellipse_at_center,_#ff6b35_0%,_#d62828_40%,_#6a040f_100%)]">
+      {showConfetti && <Confetti />}
+      
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(255,200,0,0.3)_0%,_transparent_60%)]"></div>
       <div className="absolute inset-2 border-4 border-yellow-400/60 rounded-3xl pointer-events-none"></div>
       <div className="relative z-10 max-w-6xl mx-auto">
