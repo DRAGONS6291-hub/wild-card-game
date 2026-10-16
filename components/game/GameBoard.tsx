@@ -30,6 +30,7 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
   const [gameTime, setGameTime] = useState(0);
   const [autoDrawMessage, setAutoDrawMessage] = useState<string | null>(null);
   const [scoreSaved, setScoreSaved] = useState(false);
+  const [gameKey, setGameKey] = useState(0); // ✅ Identifiant unique de partie
   const { toast } = useToast();
 
   const gameStateRef = useRef(gameState);
@@ -94,7 +95,7 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
       };
       saveScoreAndXp();
     }
-  }, [gameState.winner, profile, userId, scoreSaved, gameState.playerHand.length, gameState.difficulty, toast, playVictory, playDefeat]);
+  }, [gameState.winner, profile, userId, scoreSaved, gameState.playerHand.length, gameState.difficulty, toast, playVictory, playDefeat, gameKey]);
 
   useEffect(() => {
     const { currentPlayer, winner, jokerPendingDraw, pendingDraw, playerHand } = gameState;
@@ -144,7 +145,10 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
   const handleDrawCard = () => { playCard(); onAction({ type: 'DRAW_CARD' }); };
   const handleEndTurn = () => onAction({ type: 'END_TURN' });
   const handleSuitChoice = (suit: Suit) => onAction({ type: 'SET_SUIT', suit });
-  const handlePlayAgain = () => onAction({ type: 'NEW_GAME' });
+  const handlePlayAgain = () => {
+    setGameKey(k => k + 1); // ✅ Incrémente l'identifiant pour forcer le re-déclenchement
+    onAction({ type: 'NEW_GAME' });
+  };
 
   const { playerHand, aiHand, topCard, forcedSuit, currentPlayer, winner, isSuitPickerOpen, gameMessage, canPlayerEndTurn, pendingDraw, jokerPendingDraw } = gameState;
   const isPlayerTurn = currentPlayer === 'player' && !isPending && !winner;
@@ -217,7 +221,6 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
         </div>
       </div>
 
-      {/* ✅ JOUEUR EN BAS - STYLE MULTIJOUER */}
       <div className="absolute bottom-0 left-0 right-0 z-10 flex flex-col items-center pb-4 px-4">
         <div className="relative mb-2 flex items-center gap-3 w-full max-w-md justify-center">
           <div className={`w-16 h-16 md:w-20 md:h-20 rounded-full border-4 ${isPlayerTurn ? 'border-yellow-400 animate-pulse' : 'border-white/50'} overflow-hidden shadow-2xl bg-gray-800 flex-shrink-0`}>
@@ -231,7 +234,6 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
           {isPlayerTurn && <div className="absolute -top-1 right-0 md:-right-1 bg-yellow-400 rounded-full p-1.5 shadow-lg animate-pulse"><Trophy className="w-5 h-5 text-red-700" /></div>}
         </div>
 
-        {/* ✅ RECTANGLE GRIS D'INSTRUCTION */}
         {instructionMessage && (
           <div className="mb-3 w-full max-w-md bg-gray-700/90 backdrop-blur-sm rounded-lg px-4 py-2.5 border-2 border-gray-500 shadow-lg">
             <p className="text-white text-sm md:text-base font-bold text-center">
@@ -240,7 +242,6 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
           </div>
         )}
 
-        {/* ✅ CARTES ALIGNÉES CÔTE À CÔTE (style multijoueur) */}
         <div className="flex justify-center items-end gap-2 flex-wrap mb-3 px-4 w-full overflow-x-auto pb-2">
           {sortedPlayerHand.map((card) => {
             const playable = isPlayable(card, topCard, forcedSuit, pendingDraw, jokerPendingDraw) && isPlayerTurn;

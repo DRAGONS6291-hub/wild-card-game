@@ -57,6 +57,7 @@ export default function MultiplayerRoomPage() {
   const [showConfetti, setShowConfetti] = useState(false);
   const [xpGained, setXpGained] = useState<number | null>(null);
   const [newLevel, setNewLevel] = useState<number | null>(null);
+  const [gameKey, setGameKey] = useState(0); // ✅ Identifiant unique de partie
 
   const playerAvatar = profile?.avatar_url || `https://i.pravatar.cc/150?u=${userId}`;
 
@@ -185,7 +186,6 @@ export default function MultiplayerRoomPage() {
     return () => { supabase.removeChannel(channel); };
   }, [roomId, isPlayer1]);
 
-  // ✅ SAUVEGARDE + CALCUL XP + MISE À JOUR LEADERBOARD COMPLÈTE
   useEffect(() => {
     if (gameState?.status === 'finished' && profile && userId && !scoreSaved) {
       const isWin = gameState.winner === (isPlayer1 ? 1 : 2);
@@ -200,25 +200,20 @@ export default function MultiplayerRoomPage() {
 
       const saveScoreAndXp = async () => {
         try {
-          // 1. Sauvegarder le score
           await supabase.from('scores').insert({
             user_id: userId, pseudo: profile.pseudo, difficulty: 'multiplayer', result: isWin ? 'win' : 'loss', cards_remaining: isWin ? 0 : myHand.length
           });
 
-          // 2. Calculer XP
           const xpReward = calculateXpReward(isWin);
-          const currentXp = profile.xp || 0;
-          const newTotalXp = Math.max(0, currentXp + xpReward);
+          const newTotalXp = Math.max(0, (profile.xp || 0) + xpReward);
           const levelInfo = getLevelInfo(newTotalXp);
           const calculatedNewLevel = levelInfo.level;
 
           await supabase.from('profiles').update({ xp: newTotalXp, level: calculatedNewLevel }).eq('id', userId);
 
-          // 3. ✅ MISE À JOUR COMPLÈTE DU LEADERBOARD
           const { data: lbData } = await supabase.from('leaderboard').select('*').eq('id', userId).single();
           
           if (lbData) {
-            // Le joueur existe déjà, on met à jour
             const newWins = isWin ? (lbData.wins || 0) + 1 : (lbData.wins || 0);
             const newLosses = !isWin ? (lbData.losses || 0) + 1 : (lbData.losses || 0);
             const newTotalGames = (lbData.total_games || 0) + 1;
@@ -233,7 +228,6 @@ export default function MultiplayerRoomPage() {
               level: calculatedNewLevel
             }).eq('id', userId);
           } else {
-            // Nouveau joueur, on insère
             await supabase.from('leaderboard').insert({
               id: userId,
               pseudo: profile.pseudo,
@@ -254,7 +248,7 @@ export default function MultiplayerRoomPage() {
       };
       saveScoreAndXp();
     }
-  }, [gameState?.status, gameState?.winner, profile, userId, scoreSaved, isPlayer1, myHand.length, playVictory, playDefeat]);
+  }, [gameState?.status, gameState?.winner, profile, userId, scoreSaved, isPlayer1, myHand.length, playVictory, playDefeat, gameKey]);
 
   const handleReady = async () => {
     if (!room) return;
@@ -496,6 +490,7 @@ export default function MultiplayerRoomPage() {
     setShowConfetti(false);
     setXpGained(null);
     setNewLevel(null);
+    setGameKey(k => k + 1); // ✅ Incrémente l'identifiant pour forcer le re-déclenchement
     setActionLocked(true);
     const deck = createShuffledDeck();
     const p1Hand = deck.splice(0, 7);
@@ -570,7 +565,7 @@ export default function MultiplayerRoomPage() {
       <div className="relative z-10 max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-4 pt-4">
           <Link href="/menu" className="flex items-center gap-2 text-white font-bold hover:text-yellow-400"><ArrowLeft className="w-5 h-5" /> Quitter</Link>
-          <h1 className="text-xl md:text-2xl font-black text-yellow-400">️ MULTIJOUER</h1>
+          <h1 className="text-xl md:text-2xl font-black text-yellow-400">⚔️ MULTIJOUER</h1>
           <div className="w-20"></div>
         </div>
         
@@ -591,7 +586,7 @@ export default function MultiplayerRoomPage() {
                   <img src={opponentAvatar} alt={opponentName} className="w-full h-full object-cover" />
                 </div>
                 <p className="font-bold text-gray-800">{opponentName}</p>
-                <p className="text-sm text-gray-500 mb-3">{opponentReady ? '✅ Prêt' : ' En attente...'}</p>
+                <p className="text-sm text-gray-500 mb-3">{opponentReady ? '✅ Prêt' : '⏳ En attente...'}</p>
                 <div className="w-32 h-10 bg-gray-200 rounded flex items-center justify-center text-gray-400 text-sm font-bold">{opponentReady ? 'Prêt' : 'Attente'}</div>
               </div>
             </div>
@@ -688,10 +683,19 @@ export default function MultiplayerRoomPage() {
                 {isMyTurn && <span className="bg-green-400 text-black text-xs font-bold px-3 py-1.5 rounded-full animate-pulse flex-shrink-0">Ton tour !</span>}
               </div>
               
-              <div className="flex justify-center gap-1 flex-wrap mb-3">
+              <div className="flex justify-center items-end gap-2 flex-wrap mb-3 px-4 w-full overflow-x-auto pb-2">
                 {sortedMyHand.map((card) => {
                   const playable = isMyTurn && isCardPlayable(card, gameState.top_card, gameState.forced_suit, gameState.pending_draw);
-                  return <PlayingCard key={card.id} card={card} isPlayable={playable} onPlay={handlePlayCard} className="w-14 h-20 md:w-20 md:h-28" />;
+                  return (
+                    <div key={card.id} className="flex-shrink-0">
+                      <PlayingCard 
+                        card={card} 
+                        isPlayable={playable} 
+                        onPlay={handlePlayCard} 
+                        className="w-16 h-24 md:w-20 md:h-28" 
+                      />
+                    </div>
+                  );
                 })}
               </div>
             </div>
