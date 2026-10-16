@@ -185,6 +185,7 @@ export default function MultiplayerRoomPage() {
     return () => { supabase.removeChannel(channel); };
   }, [roomId, isPlayer1]);
 
+  // ✅ SAUVEGARDE + CALCUL XP + MISE À JOUR LEADERBOARD COMPLÈTE
   useEffect(() => {
     if (gameState?.status === 'finished' && profile && userId && !scoreSaved) {
       const isWin = gameState.winner === (isPlayer1 ? 1 : 2);
@@ -199,10 +200,12 @@ export default function MultiplayerRoomPage() {
 
       const saveScoreAndXp = async () => {
         try {
+          // 1. Sauvegarder le score
           await supabase.from('scores').insert({
             user_id: userId, pseudo: profile.pseudo, difficulty: 'multiplayer', result: isWin ? 'win' : 'loss', cards_remaining: isWin ? 0 : myHand.length
           });
 
+          // 2. Calculer XP
           const xpReward = calculateXpReward(isWin);
           const currentXp = profile.xp || 0;
           const newTotalXp = Math.max(0, currentXp + xpReward);
@@ -211,11 +214,38 @@ export default function MultiplayerRoomPage() {
 
           await supabase.from('profiles').update({ xp: newTotalXp, level: calculatedNewLevel }).eq('id', userId);
 
-          const { data: lbData } = await supabase.from('leaderboard').select('wins, total_games').eq('id', userId).single();
-          await supabase.from('leaderboard').update({
-            wins: isWin ? (lbData?.wins || 0) + 1 : (lbData?.wins || 0),
-            total_games: (lbData?.total_games || 0) + 1
-          }).eq('id', userId);
+          // 3. ✅ MISE À JOUR COMPLÈTE DU LEADERBOARD
+          const { data: lbData } = await supabase.from('leaderboard').select('*').eq('id', userId).single();
+          
+          if (lbData) {
+            // Le joueur existe déjà, on met à jour
+            const newWins = isWin ? (lbData.wins || 0) + 1 : (lbData.wins || 0);
+            const newLosses = !isWin ? (lbData.losses || 0) + 1 : (lbData.losses || 0);
+            const newTotalGames = (lbData.total_games || 0) + 1;
+            const newWinRate = newTotalGames > 0 ? (newWins / newTotalGames) * 100 : 0;
+
+            await supabase.from('leaderboard').update({
+              wins: newWins,
+              losses: newLosses,
+              total_games: newTotalGames,
+              win_rate: newWinRate,
+              xp: newTotalXp,
+              level: calculatedNewLevel
+            }).eq('id', userId);
+          } else {
+            // Nouveau joueur, on insère
+            await supabase.from('leaderboard').insert({
+              id: userId,
+              pseudo: profile.pseudo,
+              avatar_url: profile.avatar_url,
+              wins: isWin ? 1 : 0,
+              losses: isWin ? 0 : 1,
+              total_games: 1,
+              win_rate: isWin ? 100 : 0,
+              xp: newTotalXp,
+              level: calculatedNewLevel
+            });
+          }
 
           setXpGained(xpReward);
           setNewLevel(calculatedNewLevel);
@@ -445,7 +475,6 @@ export default function MultiplayerRoomPage() {
     await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
   };
 
-  // ✅ CORRECTION : La couleur imposée est CONSERVÉE quand on passe son tour
   const handlePassTurn = async () => {
     if (!gameState || actionLocked) return;
     if (gameState.current_turn !== myId) return;
@@ -454,7 +483,7 @@ export default function MultiplayerRoomPage() {
     const newState: GameState = {
       ...gameState,
       current_turn: nextTurn,
-      forced_suit: gameState.forced_suit, // ✅ GARDE la couleur imposée (ne la remet pas à null)
+      forced_suit: gameState.forced_suit,
       message: `Joueur ${myId} passe son tour. Au tour du Joueur ${nextTurn} !`,
       just_drew: false,
     };
@@ -541,7 +570,7 @@ export default function MultiplayerRoomPage() {
       <div className="relative z-10 max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-4 pt-4">
           <Link href="/menu" className="flex items-center gap-2 text-white font-bold hover:text-yellow-400"><ArrowLeft className="w-5 h-5" /> Quitter</Link>
-          <h1 className="text-xl md:text-2xl font-black text-yellow-400">⚔️ MULTIJOUER</h1>
+          <h1 className="text-xl md:text-2xl font-black text-yellow-400">️ MULTIJOUER</h1>
           <div className="w-20"></div>
         </div>
         
@@ -562,7 +591,7 @@ export default function MultiplayerRoomPage() {
                   <img src={opponentAvatar} alt={opponentName} className="w-full h-full object-cover" />
                 </div>
                 <p className="font-bold text-gray-800">{opponentName}</p>
-                <p className="text-sm text-gray-500 mb-3">{opponentReady ? '✅ Prêt' : '⏳ En attente...'}</p>
+                <p className="text-sm text-gray-500 mb-3">{opponentReady ? '✅ Prêt' : ' En attente...'}</p>
                 <div className="w-32 h-10 bg-gray-200 rounded flex items-center justify-center text-gray-400 text-sm font-bold">{opponentReady ? 'Prêt' : 'Attente'}</div>
               </div>
             </div>
