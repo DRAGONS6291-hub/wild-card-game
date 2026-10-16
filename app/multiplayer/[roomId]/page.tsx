@@ -9,7 +9,21 @@ import Link from 'next/link';
 import { PlayingCard } from '@/components/game/PlayingCard';
 import { GameCard, Suit, SUITS_FR } from '@/lib/game-types';
 import { useToast } from '@/hooks/use-toast';
-import { calculateXpReward, getLevelInfo } from '@/lib/level-system';
+
+// ✅ Fonctions XP intégrées localement pour éviter tout bug d'import
+function calculateXpReward(isWin: boolean): number {
+  return isWin ? 20 : -2;
+}
+
+function getLevelInfo(xp: number) {
+  const safeXp = Math.max(0, xp);
+  return {
+    level: Math.floor(safeXp / 100) + 1,
+    currentXp: safeXp % 100,
+    requiredXp: 100,
+    progress: ((safeXp % 100) / 100) * 100,
+  };
+}
 
 const RANK_ORDER: Record<string, number> = {
   '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10,
@@ -194,7 +208,7 @@ export default function MultiplayerRoomPage() {
             });
 
           // 2. Calculer XP (+20 victoire, -2 défaite)
-          const xpReward = calculateXpReward(isWin, difficulty);
+          const xpReward = calculateXpReward(isWin);
           const currentXp = profile.xp || 0;
           const newTotalXp = Math.max(0, currentXp + xpReward);
           const levelInfo = getLevelInfo(newTotalXp);
@@ -241,7 +255,7 @@ export default function MultiplayerRoomPage() {
               });
             }
           } catch (e) {
-            // Les succès sont optionnels, on ignore l'erreur s'ils ne sont pas configurés
+            // Ignorer si les succès ne sont pas configurés
           }
 
           setScoreSaved(true);
