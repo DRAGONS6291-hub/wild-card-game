@@ -58,6 +58,7 @@ export default function MultiplayerRoomPage() {
   const [xpGained, setXpGained] = useState<number | null>(null);
   const [newLevel, setNewLevel] = useState<number | null>(null);
   const [gameKey, setGameKey] = useState(0);
+  const [gameId, setGameId] = useState<string>(''); // ✅ ID unique de partie
 
   const playerAvatar = profile?.avatar_url || `https://i.pravatar.cc/150?u=${userId}`;
 
@@ -91,14 +92,9 @@ export default function MultiplayerRoomPage() {
     return deck;
   }
 
-  // ✅ FONCTION CORRIGÉE : Les 7 de la couleur imposée sont maintenant jouables
   function isCardPlayable(card: GameCard, topCard: GameCard | null, forcedSuit: Suit | null, pendingDraw: number = 0): boolean {
-    // Si on doit piocher (7 cumulés ou Joker), seul un 7 peut contrer
     if (pendingDraw > 0) return card.rank === '7';
-    
     if (!topCard) return true;
-    
-    // Les cartes spéciales (Valet, Joker) sont toujours jouables
     if (card.isJoker || card.rank === 'Jack') return true;
     
     const cardRank = String(card.rank || '').trim();
@@ -106,15 +102,10 @@ export default function MultiplayerRoomPage() {
     const cardSuit = String(card.suit || '').trim();
     const topSuit = String(topCard.suit || '').trim();
     
-    // ✅ Si une couleur est imposée (par un Valet/Joker)
     if (forcedSuit) {
-      // On peut jouer :
-      // 1. Une carte de la couleur imposée (y compris un 7 de cette couleur !)
-      // 2. Une carte du même rang que la carte du dessus
       return card.suit === forcedSuit || cardRank === topRank;
     }
     
-    // Sinon : même couleur ou même rang
     return cardSuit === topSuit || cardRank === topRank;
   }
 
@@ -195,7 +186,7 @@ export default function MultiplayerRoomPage() {
     return () => { supabase.removeChannel(channel); };
   }, [roomId, isPlayer1]);
 
-  // ✅ SAUVEGARDE SCORE & XP
+  // ✅ SAUVEGARDE SCORE & XP - AVEC PROTECTION CONTRE DOUBLE SAUVEGARDE
   useEffect(() => {
     if (gameState?.status !== 'finished') {
       setXpGained(null);
@@ -204,7 +195,13 @@ export default function MultiplayerRoomPage() {
       return;
     }
     
-    if (profile && userId && !scoreSaved) {
+    // ✅ Vérifier si on a déjà sauvegardé pour ce gameId
+    const savedKey = `saved_${gameId}`;
+    if (sessionStorage.getItem(savedKey) === 'true') {
+      return; // Déjà sauvegardé, on ne fait rien
+    }
+    
+    if (profile && userId && !scoreSaved && gameId) {
       const isWin = gameState.winner === (isPlayer1 ? 1 : 2);
       
       if (isWin) {
@@ -258,6 +255,9 @@ export default function MultiplayerRoomPage() {
             });
           }
 
+          // ✅ Marquer comme sauvegardé dans sessionStorage
+          sessionStorage.setItem(savedKey, 'true');
+          
           setXpGained(xpReward);
           setNewLevel(calculatedNewLevel);
           setScoreSaved(true);
@@ -265,10 +265,15 @@ export default function MultiplayerRoomPage() {
       };
       saveScoreAndXp();
     }
-  }, [gameState?.status, gameState?.winner, profile, userId, scoreSaved, isPlayer1, myHand.length, playVictory, playDefeat, gameKey]);
+  }, [gameState?.status, gameState?.winner, profile, userId, scoreSaved, isPlayer1, myHand.length, playVictory, playDefeat, gameKey, gameId]);
 
   const handleReady = async () => {
     if (!room) return;
+    // ✅ Générer un ID unique pour cette partie
+    const newGameId = `${roomId}-${Date.now()}`;
+    setGameId(newGameId);
+    sessionStorage.setItem(`game_${newGameId}`, 'pending');
+    
     setActionLocked(true);
     const newReadyState = !isReady;
     setIsReady(newReadyState);
@@ -503,6 +508,7 @@ export default function MultiplayerRoomPage() {
 
   const handleNewGame = async () => {
     if (!room) return;
+    sessionStorage.clear(); // ✅ Nettoyer le sessionStorage
     setScoreSaved(false);
     setShowConfetti(false);
     setXpGained(null);
@@ -552,7 +558,11 @@ export default function MultiplayerRoomPage() {
     await supabase.from('match_rooms').update({ game_state: newState, status: 'playing', winner_id: null }).eq('id', roomId);
   };
 
-  const handleQuit = () => { router.push('/menu'); };
+  // ✅ Utiliser router.replace() au lieu de router.push()
+  const handleQuit = () => { 
+    sessionStorage.clear(); // ✅ Nettoyer le sessionStorage
+    router.replace('/menu'); // ✅ replace au lieu de push (empêche le retour navigateur)
+  };
 
   const getInstructionMessage = () => {
     if (!isMyTurn) return "Attends ton tour...";
