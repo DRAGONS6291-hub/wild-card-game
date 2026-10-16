@@ -65,7 +65,7 @@ export default function MultiplayerRoomPage() {
     return deck;
   }
 
-  // ✅ FONCTION CORRIGÉE : même rang jouable même avec couleur imposée
+  // ✅ FONCTION CORRIGÉE
   function isCardPlayable(card: GameCard, topCard: GameCard | null, forcedSuit: Suit | null, pendingDraw: number = 0): boolean {
     // Si on doit piocher (cumul de 7), on ne peut jouer que des 7
     if (pendingDraw > 0) return card.rank === '7';
@@ -78,9 +78,9 @@ export default function MultiplayerRoomPage() {
     const cardSuit = String(card.suit || '').trim();
     const topSuit = String(topCard.suit || '').trim();
     
-    // ✅ Si une couleur est imposée, on peut jouer cette couleur OU le même rang
+    // ✅ Si une couleur est imposée, on peut SEULEMENT jouer cette couleur
     if (forcedSuit) {
-      return card.suit === forcedSuit || cardRank === topRank;
+      return card.suit === forcedSuit;
     }
     
     // Sinon, règles normales : même couleur OU même rang
@@ -424,6 +424,7 @@ export default function MultiplayerRoomPage() {
   const isMyTurn = gameState?.current_turn === myId && gameState?.status === 'playing';
   const justDrew = gameState?.just_drew && isMyTurn;
 
+  // ✅ MESSAGE CORRIGÉ
   const getInstructionMessage = () => {
     if (!isMyTurn) return "Attends ton tour...";
     if (gameState?.pending_draw && gameState.pending_draw > 0) {
@@ -431,7 +432,8 @@ export default function MultiplayerRoomPage() {
       if (hasSeven) return `Joue un 7 ou pioche ${gameState.pending_draw} cartes`;
       return `Pioche ${gameState.pending_draw} cartes`;
     }
-    if (gameState?.forced_suit) return `Joue ${SUITS_FR[gameState.forced_suit]} ou un même rang`;
+    // ✅ Quand une couleur est imposée, on dit juste "Joue [Couleur]"
+    if (gameState?.forced_suit) return `Joue ${SUITS_FR[gameState.forced_suit]}`;
     if (justDrew) return "Joue une carte ou passe ton tour";
     return "Joue une carte ou pioche";
   };
