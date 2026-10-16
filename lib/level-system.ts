@@ -1,5 +1,5 @@
-// ✅ Calcul d'XP synchronisé : +20 pour une victoire, -2 pour une défaite
-export function calculateXpReward(isWin: boolean, difficulty: string): number {
+// ✅ Calcul d'XP synchronisé pour Local et Multijoueur : +20 victoire, -2 défaite
+export function calculateXpReward(isWin: boolean, difficulty?: string): number {
   if (isWin) {
     return 20; // +20 XP pour une victoire
   } else {
@@ -20,10 +20,4 @@ export function getLevelInfo(xp: number) {
     requiredXp: 100,
     progress: (xpInCurrentLevel / 100) * 100,
   };
-}
-
-// ✅ Fonction optionnelle pour vérifier les succès (à adapter selon ton fichier achievements)
-export async function checkAndUnlockAchievements(userId: string, stats: any) {
-  // Cette fonction est appelée depuis le jeu, elle peut rester vide ou contenir ta logique de succès
-  return [];
 }

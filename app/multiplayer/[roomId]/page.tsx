@@ -123,7 +123,6 @@ export default function MultiplayerRoomPage() {
       try {
         const { data, error } = await supabase.from('match_rooms').select('*').eq('id', roomId).single();
         if (error || !data) { 
-          console.error('Erreur chargement salle:', error);
           router.push('/multiplayer'); 
           return; 
         }
@@ -173,7 +172,7 @@ export default function MultiplayerRoomPage() {
     return () => { supabase.removeChannel(channel); };
   }, [roomId, isPlayer1]);
 
-  // ✅ SAUVEGARDE DU SCORE, XP ET NIVEAU EN FIN DE PARTIE (Synchronisé Local & Multi)
+  // ✅ SAUVEGARDE DU SCORE, XP ET NIVEAU EN FIN DE PARTIE
   useEffect(() => {
     if (gameState?.status === 'finished' && profile && userId && !scoreSaved) {
       const saveScoreAndXp = async () => {
@@ -182,26 +181,22 @@ export default function MultiplayerRoomPage() {
         const cardsRemaining = isWin ? 0 : myHand.length;
         const difficulty = 'multiplayer';
 
-        // 1. Sauvegarder le score
-        const { error: scoreError } = await supabase
-          .from('scores')
-          .insert({
-            user_id: userId,
-            pseudo: profile.pseudo,
-            difficulty: difficulty,
-            result: result,
-            cards_remaining: cardsRemaining,
-          });
+        try {
+          // 1. Sauvegarder le score
+          await supabase
+            .from('scores')
+            .insert({
+              user_id: userId,
+              pseudo: profile.pseudo,
+              difficulty: difficulty,
+              result: result,
+              cards_remaining: cardsRemaining,
+            });
 
-        if (scoreError) {
-          console.error('Erreur sauvegarde score:', scoreError);
-          toast({ title: 'Erreur', description: 'Impossible de sauvegarder le score.', variant: 'destructive' });
-        } else {
           // 2. Calculer XP (+20 victoire, -2 défaite)
           const xpReward = calculateXpReward(isWin, difficulty);
           const currentXp = profile.xp || 0;
-          const newTotalXp = Math.max(0, currentXp + xpReward); // Empêche les XP négatifs
-          
+          const newTotalXp = Math.max(0, currentXp + xpReward);
           const levelInfo = getLevelInfo(newTotalXp);
           const newLevel = levelInfo.level;
 
@@ -210,7 +205,7 @@ export default function MultiplayerRoomPage() {
             .update({ xp: newTotalXp, level: newLevel })
             .eq('id', userId);
 
-          // 3. Mettre à jour le classement (leaderboard)
+          // 3. Mettre à jour le classement
           const { data: leaderboardData } = await supabase
             .from('leaderboard')
             .select('wins, total_games')
@@ -228,7 +223,7 @@ export default function MultiplayerRoomPage() {
             })
             .eq('id', userId);
 
-          // 4. Vérifier les succès (achievements)
+          // 4. Succès (optionnel)
           try {
             const { checkAndUnlockAchievements } = await import('@/lib/achievements');
             const newlyUnlocked = await checkAndUnlockAchievements(userId, {
@@ -246,10 +241,13 @@ export default function MultiplayerRoomPage() {
               });
             }
           } catch (e) {
-            console.log('Achievements non configurés ou erreur', e);
+            // Les succès sont optionnels, on ignore l'erreur s'ils ne sont pas configurés
           }
 
           setScoreSaved(true);
+        } catch (err) {
+          console.error('Erreur sauvegarde:', err);
+          toast({ title: 'Erreur', description: 'Problème lors de la sauvegarde.', variant: 'destructive' });
         }
       };
       saveScoreAndXp();
@@ -494,7 +492,7 @@ export default function MultiplayerRoomPage() {
 
   const handleNewGame = async () => {
     if (!room) return;
-    setScoreSaved(false); // ✅ Reset pour permettre la sauvegarde de la prochaine partie
+    setScoreSaved(false);
     setActionLocked(true);
     const deck = createShuffledDeck();
     const p1Hand = deck.splice(0, 7);
