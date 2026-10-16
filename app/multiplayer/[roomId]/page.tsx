@@ -65,14 +65,14 @@ export default function MultiplayerRoomPage() {
     return deck;
   }
 
-  // ✅ RÈGLES COMPLÈTES DU WILD CARD
+  // ✅ RÈGLES COMPLÈTES CORRIGÉES DU WILD CARD
   function isCardPlayable(card: GameCard, topCard: GameCard | null, forcedSuit: Suit | null, pendingDraw: number = 0): boolean {
-    // Règle 1 : Si on doit piocher (cumul de 7), on ne peut jouer que des 7
+    // Règle 1 : Si cumul de 7 en cours, on ne peut jouer QUE des 7
     if (pendingDraw > 0) return card.rank === '7';
     
     if (!topCard) return true;
     
-    // Règle 2 : Joker et Valet sont toujours jouables (cartes wild)
+    // Règle 2 : Joker et Valet sont TOUJOURS jouables (cartes wild)
     if (card.isJoker || card.rank === 'Jack') return true;
     
     const cardRank = String(card.rank || '').trim();
@@ -80,8 +80,13 @@ export default function MultiplayerRoomPage() {
     const cardSuit = String(card.suit || '').trim();
     const topSuit = String(topCard.suit || '').trim();
     
-    // Règle 3 : Si une couleur est imposée, on peut jouer cette couleur OU le même rang
+    // Règle 3 : Si une couleur est imposée (après Valet/Joker), on peut jouer :
+    // - Une carte de cette couleur (sauf un 7 qui déclencherait un cumul)
+    // - OU une carte du même rang que la carte du dessus
     if (forcedSuit) {
+      // Un 7 ne peut PAS être joué comme carte "normale" de la couleur imposée
+      // Il doit être joué uniquement s'il y a un cumul en cours (géré par Règle 1)
+      if (card.rank === '7') return false;
       return card.suit === forcedSuit || cardRank === topRank;
     }
     
@@ -211,12 +216,15 @@ export default function MultiplayerRoomPage() {
     await supabase.from('match_rooms').update({ game_state: updateData }).eq('id', roomId);
   };
 
+  // ✅ handlePlayCard COMPLÈTEMENT REÉCRIT AVEC TOUTES LES RÈGLES
   const handlePlayCard = async (card: GameCard) => {
     if (!gameState || actionLocked) return;
     const myId: 1 | 2 = isPlayer1 ? 1 : 2;
     if (gameState.current_turn !== myId) return;
+    
     const playable = isCardPlayable(card, gameState.top_card, gameState.forced_suit, gameState.pending_draw);
     if (!playable) return;
+    
     setActionLocked(true);
     const myHand = isPlayer1 ? [...gameState.player1_hand] : [...gameState.player2_hand];
     const cardIndex = myHand.findIndex(c => c.id === card.id);
@@ -224,16 +232,18 @@ export default function MultiplayerRoomPage() {
     myHand.splice(cardIndex, 1);
     const newDiscard = [...gameState.discard_pile, card];
     const nextTurn: 1 | 2 = myId === 1 ? 2 : 1;
+    
+    // ✅ RÈGLE IMPORTANTE : forced_suit est TOUJOURS reset à null après avoir joué une carte
+    // (sauf pendant le suit picker du Valet/Joker)
     let newMessage = `Joueur ${myId} joue ${card.rank}`;
     let newPendingDraw = gameState.pending_draw;
-    let newForcedSuit = gameState.forced_suit;
     let newCurrentTurn = nextTurn;
 
-    // Règle du 7 : cumul +2, tour passe à l'adversaire
+    // === CARTE SPÉCIALE : 7 ===
     if (card.rank === '7') {
       newPendingDraw += 2;
       newMessage = `7 joué ! +${newPendingDraw} cartes à piocher. ${opponentName} doit jouer un 7 ou piocher !`;
-      newCurrentTurn = nextTurn;
+      newCurrentTurn = nextTurn; // Tour passe à l'adversaire
       
       const newState: GameState = {
         ...gameState,
@@ -241,7 +251,7 @@ export default function MultiplayerRoomPage() {
         discard_pile: newDiscard,
         top_card: card,
         current_turn: newCurrentTurn,
-        forced_suit: newForcedSuit,
+        forced_suit: null, // ✅ Reset
         pending_draw: newPendingDraw,
         winner: gameState.winner,
         status: gameState.status,
@@ -252,13 +262,29 @@ export default function MultiplayerRoomPage() {
       return;
     }
     
-    // Règle du 10 : tour de l'adversaire sauté
+    // === CARTE SPÉCIALE : 10 ===
     if (card.rank === '10') {
       newMessage = '10 joué ! Tour de l\'adversaire sauté. Vous pouvez rejouer ou passer votre tour.';
-      newCurrentTurn = myId;
+      newCurrentTurn = myId; // ✅ On garde le tour
+      
+      const newState: GameState = {
+        ...gameState,
+        ...(isPlayer1 ? { player1_hand: myHand } : { player2_hand: myHand }),
+        discard_pile: newDiscard,
+        top_card: card,
+        current_turn: newCurrentTurn,
+        forced_suit: null, // ✅ Reset (c'était le bug !)
+        pending_draw: 0,
+        winner: gameState.winner,
+        status: gameState.status,
+        message: newMessage,
+        just_drew: false,
+      };
+      await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
+      return;
     }
     
-    // Règle du Valet/Joker : choix de couleur
+    // === CARTE SPÉCIALE : Valet ou Joker ===
     if (card.rank === 'Jack' || card.isJoker) {
       setPendingCard(card);
       setShowSuitPicker(true);
@@ -267,7 +293,8 @@ export default function MultiplayerRoomPage() {
         ...(isPlayer1 ? { player1_hand: myHand } : { player2_hand: myHand }),
         discard_pile: newDiscard,
         top_card: card,
-        pending_draw: newPendingDraw,
+        pending_draw: 0,
+        forced_suit: null, // ✅ Pas de couleur imposée pendant le choix
         message: newMessage + ' - Choisis une couleur...',
         just_drew: false,
       };
@@ -275,7 +302,7 @@ export default function MultiplayerRoomPage() {
       return;
     }
 
-    // Victoire
+    // === CARTE NORMALE ===
     let winner = gameState.winner;
     let status = gameState.status;
     if (myHand.length === 0) {
@@ -290,8 +317,8 @@ export default function MultiplayerRoomPage() {
       discard_pile: newDiscard,
       top_card: card,
       current_turn: winner ? gameState.current_turn : newCurrentTurn,
-      forced_suit: newForcedSuit,
-      pending_draw: newPendingDraw,
+      forced_suit: null, // ✅ Reset après carte normale (c'était le bug !)
+      pending_draw: 0,
       winner,
       status,
       message: newMessage,
@@ -325,7 +352,7 @@ export default function MultiplayerRoomPage() {
       ...(isPlayer1 ? { player1_hand: myHand, player2_hand: opponentHand } : { player1_hand: opponentHand, player2_hand: myHand }),
       deck: newDeck,
       discard_pile: newDiscard,
-      forced_suit: suit,
+      forced_suit: suit, // ✅ Couleur imposée pour le prochain joueur
       current_turn: nextTurn,
       pending_draw: 0,
       message: newMessage,
@@ -346,13 +373,13 @@ export default function MultiplayerRoomPage() {
     const myHand = isPlayer1 ? [...gameState.player1_hand] : [...gameState.player2_hand];
     myHand.push(...drawnCards);
     
-    // Après pioche, le joueur garde la main
     const newState: GameState = {
       ...gameState,
       ...(isPlayer1 ? { player1_hand: myHand } : { player2_hand: myHand }),
       deck: newDeck,
       discard_pile: newDiscard,
       pending_draw: 0,
+      forced_suit: null, // ✅ Reset après pioche
       message: `Joueur ${myId} pioche ${cardsToDraw} carte(s). Joue une carte ou passe ton tour.`,
       just_drew: true,
       current_turn: myId,
@@ -369,6 +396,7 @@ export default function MultiplayerRoomPage() {
     const newState: GameState = {
       ...gameState,
       current_turn: nextTurn,
+      forced_suit: null, // ✅ Reset
       message: `Joueur ${myId} passe son tour. Au tour du Joueur ${nextTurn} !`,
       just_drew: false,
     };
@@ -432,7 +460,6 @@ export default function MultiplayerRoomPage() {
   const isMyTurn = gameState?.current_turn === myId && gameState?.status === 'playing';
   const justDrew = gameState?.just_drew && isMyTurn;
 
-  // ✅ MESSAGES CLAIRS SELON LA SITUATION
   const getInstructionMessage = () => {
     if (!isMyTurn) return "Attends ton tour...";
     if (gameState?.pending_draw && gameState.pending_draw > 0) {
@@ -440,7 +467,6 @@ export default function MultiplayerRoomPage() {
       if (hasSeven) return `Joue un 7 ou pioche ${gameState.pending_draw} cartes`;
       return `Pioche ${gameState.pending_draw} cartes`;
     }
-    // ✅ Quand une couleur est imposée, on indique les deux options
     if (gameState?.forced_suit) {
       return `Joue ${SUITS_FR[gameState.forced_suit]} ou un même rang`;
     }
@@ -486,7 +512,7 @@ export default function MultiplayerRoomPage() {
         ) : gameState.status === 'finished' ? (
           <div className="bg-white/95 rounded-2xl p-8 shadow-2xl border-2 border-yellow-400 text-center">
             <Trophy className="w-20 h-20 mx-auto text-yellow-500 mb-4" />
-            <h2 className="text-3xl font-black mb-4">{gameState.winner === myId ? '🎉 Tu as gagné !' : ' Tu as perdu...'}</h2>
+            <h2 className="text-3xl font-black mb-4">{gameState.winner === myId ? '🎉 Tu as gagné !' : '😢 Tu as perdu...'}</h2>
             <p className="text-gray-600 mb-6">Vainqueur : Joueur {gameState.winner}</p>
             <div className="space-y-3 max-w-md mx-auto">
               <Button onClick={handleNewGame} className="bg-gradient-to-b from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-black font-black border-b-4 border-yellow-800 py-6 text-lg w-full"><Sparkles className="w-5 h-5 mr-2" /> Nouvelle partie</Button>
