@@ -8,6 +8,12 @@ import { ArrowLeft, Loader2, Users, Trophy, Sparkles, Home, SkipForward } from '
 import Link from 'next/link';
 import { PlayingCard } from '@/components/game/PlayingCard';
 import { GameCard, Suit, SUITS_FR } from '@/lib/game-types';
+import { useToast } from '@/hooks/use-toast';
+
+const RANK_ORDER: Record<string, number> = {
+  '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10,
+  'Jack': 11, 'Queen': 12, 'King': 13, 'Ace': 14, 'Joker': 15
+};
 
 interface GameState {
   status: 'waiting' | 'playing' | 'finished';
@@ -26,16 +32,12 @@ interface GameState {
   just_drew: boolean;
 }
 
-const RANK_ORDER: Record<string, number> = {
-  '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10,
-  'Jack': 11, 'Queen': 12, 'King': 13, 'Ace': 14, 'Joker': 15
-};
-
 export default function MultiplayerRoomPage() {
   const router = useRouter();
   const params = useParams();
   const roomId = params?.roomId as string;
   const { profile, userId } = useAuth();
+  const { toast } = useToast();
   
   const [room, setRoom] = useState<any>(null);
   const [isPlayer1, setIsPlayer1] = useState(false);
@@ -48,6 +50,7 @@ export default function MultiplayerRoomPage() {
   const [showSuitPicker, setShowSuitPicker] = useState(false);
   const [pendingCard, setPendingCard] = useState<GameCard | null>(null);
   const [actionLocked, setActionLocked] = useState(false);
+  const [scoreSaved, setScoreSaved] = useState(false);
 
   const playerAvatar = profile?.avatar_url || `https://i.pravatar.cc/150?u=${userId}`;
 
@@ -168,6 +171,95 @@ export default function MultiplayerRoomPage() {
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [roomId, isPlayer1]);
+
+  // ✅ SAUVEGARDE DU SCORE, XP ET NIVEAU EN FIN DE PARTIE (Synchronisé avec le local)
+  useEffect(() => {
+    if (gameState?.status === 'finished' && profile && userId && !scoreSaved) {
+      const saveScoreAndXp = async () => {
+        const isWin = gameState.winner === (isPlayer1 ? 1 : 2);
+        const result = isWin ? 'win' : 'loss';
+        const cardsRemaining = isWin ? 0 : myHand.length;
+        const difficulty = 'multiplayer';
+
+        // 1. Sauvegarder le score
+        const { error: scoreError } = await supabase
+          .from('scores')
+          .insert({
+            user_id: userId,
+            pseudo: profile.pseudo,
+            difficulty: difficulty,
+            result: result,
+            cards_remaining: cardsRemaining,
+          });
+
+        if (scoreError) {
+          console.error('Erreur sauvegarde score:', scoreError);
+          toast({ title: 'Erreur', description: 'Impossible de sauvegarder le score.', variant: 'destructive' });
+        } else {
+          // 2. Calculer XP (50 XP victoire, 15 XP défaite en multijoueur)
+          const xpReward = isWin ? 50 : 15;
+          const currentXp = profile.xp || 0;
+          const newTotalXp = Math.max(0, currentXp + xpReward);
+          
+          let newLevel = 1;
+          try {
+            const { getLevelInfo } = await import('@/lib/level-system');
+            const levelInfo = getLevelInfo(newTotalXp);
+            newLevel = levelInfo.level;
+          } catch (e) {
+            newLevel = Math.floor(newTotalXp / 100) + 1;
+          }
+
+          await supabase
+            .from('profiles')
+            .update({ xp: newTotalXp, level: newLevel })
+            .eq('id', userId);
+
+          // 3. Mettre à jour le classement (leaderboard)
+          const { data: leaderboardData } = await supabase
+            .from('leaderboard')
+            .select('wins, total_games')
+            .eq('id', userId)
+            .single();
+            
+          const currentWins = leaderboardData?.wins || 0;
+          const currentTotalGames = leaderboardData?.total_games || 0;
+
+          await supabase
+            .from('leaderboard')
+            .update({ 
+              wins: isWin ? currentWins + 1 : currentWins,
+              total_games: currentTotalGames + 1
+            })
+            .eq('id', userId);
+
+          // 4. Vérifier les succès (achievements)
+          try {
+            const { checkAndUnlockAchievements } = await import('@/lib/achievements');
+            const newlyUnlocked = await checkAndUnlockAchievements(userId, {
+              wins: isWin ? currentWins + 1 : currentWins,
+              totalGames: currentTotalGames + 1,
+              level: newLevel,
+              totalXp: newTotalXp,
+              wonOnHard: false,
+            });
+            
+            if (newlyUnlocked && newlyUnlocked.length > 0) {
+              toast({ 
+                title: '🏆 Succès débloqué !', 
+                description: `Tu as débloqué ${newlyUnlocked.length} nouveau(x) succès !`,
+              });
+            }
+          } catch (e) {
+            console.log('Achievements non configurés ou erreur', e);
+          }
+
+          setScoreSaved(true);
+        }
+      };
+      saveScoreAndXp();
+    }
+  }, [gameState?.status, gameState?.winner, profile, userId, scoreSaved, isPlayer1, myHand.length, toast]);
 
   const handleReady = async () => {
     if (!room) return;
@@ -311,7 +403,7 @@ export default function MultiplayerRoomPage() {
     if (myHand.length === 0) {
       winner = myId;
       status = 'finished';
-      newMessage = ` Joueur ${myId} a gagné !`;
+      newMessage = `🎉 Joueur ${myId} a gagné !`;
     }
     
     const newState: GameState = {
@@ -407,6 +499,7 @@ export default function MultiplayerRoomPage() {
 
   const handleNewGame = async () => {
     if (!room) return;
+    setScoreSaved(false); // ✅ Reset pour permettre la sauvegarde de la prochaine partie
     setActionLocked(true);
     const deck = createShuffledDeck();
     const p1Hand = deck.splice(0, 7);
@@ -457,7 +550,6 @@ export default function MultiplayerRoomPage() {
   if (!room) return <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(ellipse_at_center,_#ff6b35_0%,_#d62828_40%,_#6a040f_100%)]"><p className="text-white text-xl font-bold">Salle introuvable</p></div>;
 
   const myId: 1 | 2 = isPlayer1 ? 1 : 2;
-  // ✅ SÉCURISATION : || [] pour éviter undefined
   const myHand: GameCard[] = (gameState && (isPlayer1 ? gameState.player1_hand : gameState.player2_hand)) || [];
   const opponentHand: GameCard[] = (gameState && (isPlayer1 ? gameState.player2_hand : gameState.player1_hand)) || [];
   const isMyTurn = gameState?.current_turn === myId && gameState?.status === 'playing';
@@ -488,7 +580,7 @@ export default function MultiplayerRoomPage() {
       <div className="relative z-10 max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-4 pt-4">
           <Link href="/menu" className="flex items-center gap-2 text-white font-bold hover:text-yellow-400"><ArrowLeft className="w-5 h-5" /> Quitter</Link>
-          <h1 className="text-xl md:text-2xl font-black text-yellow-400">️ MULTIJOUER</h1>
+          <h1 className="text-xl md:text-2xl font-black text-yellow-400">⚔️ MULTIJOUER</h1>
           <div className="w-20"></div>
         </div>
         
@@ -509,7 +601,7 @@ export default function MultiplayerRoomPage() {
                   <img src={opponentAvatar} alt={opponentName} className="w-full h-full object-cover" />
                 </div>
                 <p className="font-bold text-gray-800">{opponentName}</p>
-                <p className="text-sm text-gray-500 mb-3">{opponentReady ? '✅ Prêt' : ' En attente...'}</p>
+                <p className="text-sm text-gray-500 mb-3">{opponentReady ? '✅ Prêt' : '⏳ En attente...'}</p>
                 <div className="w-32 h-10 bg-gray-200 rounded flex items-center justify-center text-gray-400 text-sm font-bold">{opponentReady ? 'Prêt' : 'Attente'}</div>
               </div>
             </div>
