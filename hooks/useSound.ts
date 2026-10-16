@@ -1,46 +1,81 @@
-'use client';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback } from 'react';
 
-// Chemins des fichiers audio
-const SOUNDS = {
-  card: '/sounds/card.mp3',
-  victory: '/sounds/victory.mp3',
-  defeat: '/sounds/defeat.mp3',
-  menuClick: '/sounds/menu-click.mp3',
-};
-
+// ✅ Système de sons généré par le navigateur (pas besoin de fichiers MP3)
 export function useSound() {
-  const audioRefs = useRef<Record<string, HTMLAudioElement>>({});
-
-  // Précharger les sons au montage du composant
-  useEffect(() => {
-    Object.entries(SOUNDS).forEach(([key, src]) => {
-      const audio = new Audio(src);
-      audio.preload = 'auto';
-      audio.volume = 0.5;
-      audioRefs.current[key] = audio;
-    });
-  }, []);
-
-  const playSound = useCallback((soundKey: string) => {
-    const audio = audioRefs.current[soundKey];
-    if (audio) {
-      audio.currentTime = 0;
-      audio.play().catch(() => {
-        // Ignorer les erreurs si l'utilisateur n'a pas encore interagi
-      });
+  const playCard = useCallback(() => {
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.frequency.value = 800;
+      oscillator.type = 'sine';
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.1);
+    } catch (e) {
+      console.log('Son non supporté');
     }
   }, []);
 
-  const playCard = useCallback(() => playSound('card'), [playSound]);
-  const playVictory = useCallback(() => playSound('victory'), [playSound]);
-  const playDefeat = useCallback(() => playSound('defeat'), [playSound]);
-  const playMenuClick = useCallback(() => playSound('menuClick'), [playSound]);
+  const playVictory = useCallback(() => {
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const notes = [523.25, 659.25, 783.99, 1046.50]; // Do, Mi, Sol, Do aigu
+      
+      notes.forEach((freq, index) => {
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.value = freq;
+        oscillator.type = 'sine';
+        
+        const startTime = audioContext.currentTime + (index * 0.15);
+        gainNode.gain.setValueAtTime(0.3, startTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + 0.3);
+        
+        oscillator.start(startTime);
+        oscillator.stop(startTime + 0.3);
+      });
+    } catch (e) {
+      console.log('Son non supporté');
+    }
+  }, []);
 
-  return { 
-    playCard, 
-    playVictory, 
-    playDefeat, 
-    playMenuClick,
-  };
+  const playDefeat = useCallback(() => {
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const notes = [400, 350, 300, 250]; // Notes descendantes
+      
+      notes.forEach((freq, index) => {
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.value = freq;
+        oscillator.type = 'sawtooth';
+        
+        const startTime = audioContext.currentTime + (index * 0.2);
+        gainNode.gain.setValueAtTime(0.2, startTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + 0.4);
+        
+        oscillator.start(startTime);
+        oscillator.stop(startTime + 0.4);
+      });
+    } catch (e) {
+      console.log('Son non supporté');
+    }
+  }, []);
+
+  return { playCard, playVictory, playDefeat };
 }

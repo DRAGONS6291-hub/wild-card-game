@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { PlayingCard } from '@/components/game/PlayingCard';
 import { GameCard, Suit, SUITS_FR } from '@/lib/game-types';
 import { useToast } from '@/hooks/use-toast';
+import { useSound } from '@/hooks/useSound';
 
 const RANK_ORDER: Record<string, number> = {
   '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10,
@@ -38,6 +39,7 @@ export default function MultiplayerRoomPage() {
   const roomId = params?.roomId as string;
   const { profile, userId } = useAuth();
   const { toast } = useToast();
+  const { playCard, playVictory, playDefeat } = useSound();
   
   const [room, setRoom] = useState<any>(null);
   const [isPlayer1, setIsPlayer1] = useState(false);
@@ -54,7 +56,6 @@ export default function MultiplayerRoomPage() {
 
   const playerAvatar = profile?.avatar_url || `https://i.pravatar.cc/150?u=${userId}`;
 
-  // ✅ Fonctions XP locales
   const calculateXpReward = (isWin: boolean) => (isWin ? 20 : -2);
   const getLevelInfo = (xp: number) => {
     const safeXp = Math.max(0, xp);
@@ -128,7 +129,6 @@ export default function MultiplayerRoomPage() {
     });
   }
 
-  // ✅ DÉCLARATION DE myHand AVANT les useEffect qui l'utilisent
   const myId: 1 | 2 = isPlayer1 ? 1 : 2;
   const myHand: GameCard[] = (gameState && (isPlayer1 ? gameState.player1_hand : gameState.player2_hand)) || [];
   const opponentHand: GameCard[] = (gameState && (isPlayer1 ? gameState.player2_hand : gameState.player1_hand)) || [];
@@ -181,7 +181,6 @@ export default function MultiplayerRoomPage() {
     return () => { supabase.removeChannel(channel); };
   }, [roomId, isPlayer1]);
 
-  // ✅ SAUVEGARDE SCORE & XP (myHand est maintenant défini avant ce useEffect)
   useEffect(() => {
     if (gameState?.status === 'finished' && profile && userId && !scoreSaved) {
       const saveScoreAndXp = async () => {
@@ -203,12 +202,19 @@ export default function MultiplayerRoomPage() {
             total_games: (lbData?.total_games || 0) + 1
           }).eq('id', userId);
 
+          // ✅ Jouer le son de victoire ou défaite
+          if (isWin) {
+            playVictory();
+          } else {
+            playDefeat();
+          }
+
           setScoreSaved(true);
         } catch (err) { console.error('Erreur sauvegarde:', err); }
       };
       saveScoreAndXp();
     }
-  }, [gameState?.status, gameState?.winner, profile, userId, scoreSaved, isPlayer1, myHand.length]);
+  }, [gameState?.status, gameState?.winner, profile, userId, scoreSaved, isPlayer1, myHand.length, playVictory, playDefeat]);
 
   const handleReady = async () => {
     if (!room) return;
@@ -274,6 +280,7 @@ export default function MultiplayerRoomPage() {
     const playable = isCardPlayable(card, gameState.top_card, gameState.forced_suit, gameState.pending_draw);
     if (!playable) return;
     
+    playCard(); // ✅ Son de carte jouée
     setActionLocked(true);
     const currentHand = isPlayer1 ? [...(gameState.player1_hand || [])] : [...(gameState.player2_hand || [])];
     const cardIndex = currentHand.findIndex(c => c.id === card.id);
@@ -546,7 +553,7 @@ export default function MultiplayerRoomPage() {
         ) : gameState.status === 'finished' ? (
           <div className="bg-white/95 rounded-2xl p-8 shadow-2xl border-2 border-yellow-400 text-center">
             <Trophy className="w-20 h-20 mx-auto text-yellow-500 mb-4" />
-            <h2 className="text-3xl font-black mb-4">{gameState.winner === myId ? ' Tu as gagné !' : '😢 Tu as perdu...'}</h2>
+            <h2 className="text-3xl font-black mb-4">{gameState.winner === myId ? '🎉 Tu as gagné !' : '😢 Tu as perdu...'}</h2>
             <p className="text-gray-600 mb-6">Vainqueur : Joueur {gameState.winner}</p>
             <div className="space-y-3 max-w-md mx-auto">
               <Button onClick={handleNewGame} className="bg-gradient-to-b from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-black font-black border-b-4 border-yellow-800 py-6 text-lg w-full"><Sparkles className="w-5 h-5 mr-2" /> Nouvelle partie</Button>
