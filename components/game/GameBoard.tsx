@@ -15,7 +15,6 @@ import { useAuth } from '@/components/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { useSound } from '@/hooks/useSound';
 import { calculateXpReward, getLevelInfo } from '@/lib/level-system';
-import { checkAndUnlockAchievements } from '@/lib/achievements';
 
 const rankOrder = [...RANKS, 'Joker'].reduce((acc, rank, index) => { acc[rank] = index; return acc; }, {} as Record<string, number>);
 const AVATARS = { ai: 'https://i.pravatar.cc/150?img=32' };
@@ -49,23 +48,47 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
         const result = isWin ? 'win' : 'loss';
         const cardsRemaining = isWin ? 0 : gameState.playerHand.length;
         const difficulty = gameState.difficulty || 'medium';
-        const { error: scoreError } = await supabase.from('scores').insert({ user_id: userId, pseudo: profile.pseudo, difficulty, result, cards_remaining: cardsRemaining });
+        
+        const { error: scoreError } = await supabase.from('scores').insert({ 
+          user_id: userId, 
+          pseudo: profile.pseudo, 
+          difficulty, 
+          result, 
+          cards_remaining: cardsRemaining 
+        });
+        
         if (scoreError) {
           toast({ title: 'Erreur', description: 'Impossible de sauvegarder le score.', variant: 'destructive' });
         } else {
           const xpReward = calculateXpReward(isWin, difficulty);
           const newTotalXp = Math.max(0, (profile.xp || 0) + xpReward);
           const newLevel = getLevelInfo(newTotalXp).level;
+          
           await supabase.from('profiles').update({ xp: newTotalXp, level: newLevel }).eq('id', userId);
+          
           const { data: leaderboardData } = await supabase.from('leaderboard').select('wins, total_games').eq('id', userId).single();
-          const newlyUnlocked = await checkAndUnlockAchievements(userId, {
-            wins: isWin ? (leaderboardData?.wins || 0) + 1 : (leaderboardData?.wins || 0),
-            totalGames: (leaderboardData?.total_games || 0) + 1,
-            level: newLevel, totalXp: newTotalXp, wonOnHard: isWin && difficulty === 'hard',
-          });
+          
+          // ✅ SÉCURITÉ : Try/catch pour les succès afin d'éviter tout plantage
+          let newlyUnlocked: string[] = [];
+          try {
+            const { checkAndUnlockAchievements } = await import('@/lib/achievements');
+            newlyUnlocked = await checkAndUnlockAchievements(userId, {
+              wins: isWin ? (leaderboardData?.wins || 0) + 1 : (leaderboardData?.wins || 0),
+              totalGames: (leaderboardData?.total_games || 0) + 1,
+              level: newLevel, 
+              totalXp: newTotalXp, 
+              wonOnHard: isWin && difficulty === 'hard',
+            });
+          } catch (e) {
+            console.log('Système de succès non disponible ou en cours de développement');
+          }
+
           setScoreSaved(true);
           isWin ? playVictory() : playDefeat();
-          if (newlyUnlocked.length > 0) toast({ title: '🏆 Succès débloqué !', description: `Tu as débloqué ${newlyUnlocked.length} nouveau(x) succès !` });
+          
+          if (newlyUnlocked && newlyUnlocked.length > 0) {
+            toast({ title: '🏆 Succès débloqué !', description: `Tu as débloqué ${newlyUnlocked.length} nouveau(x) succès !` });
+          }
         }
       };
       saveScoreAndXp();
@@ -130,31 +153,17 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
   const drawButtonDisabled = !isPlayerTurn || canPlayerEndTurn || mustAutoDraw;
   const formatTime = (seconds: number) => `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
 
-  // ✅ Construire le message d'instruction clair
   const getInstructionMessage = () => {
     if (winner) return null;
-    
-    if (autoDrawMessage) {
-      return ` ${autoDrawMessage}`;
-    }
-    if (jokerPendingDraw && pendingDraw > 0) {
-      return `⚠️ Pioche ${pendingDraw} cartes (Joker)`;
-    }
+    if (autoDrawMessage) return ` ${autoDrawMessage}`;
+    if (jokerPendingDraw && pendingDraw > 0) return `⚠️ Pioche ${pendingDraw} cartes (Joker)`;
     if (pendingDraw > 0) {
-      if (canPlayerPlaySeven) {
-        return `⚠️ Joue un 7 ou pioche ${pendingDraw} cartes`;
-      }
+      if (canPlayerPlaySeven) return `⚠️ Joue un 7 ou pioche ${pendingDraw} cartes`;
       return `️ Pioche ${pendingDraw} cartes automatiquement`;
     }
-    if (forcedSuit) {
-      return `🎯 Joue une carte de ${SUITS_FR[forcedSuit]}`;
-    }
-    if (isPending) {
-      return `⏳ L'IA réfléchit...`;
-    }
-    if (isPlayerTurn) {
-      return `▶️ À ton tour ! Joue une carte ou pioche`;
-    }
+    if (forcedSuit) return `🎯 Joue une carte de ${SUITS_FR[forcedSuit]}`;
+    if (isPending) return `⏳ L'IA réfléchit...`;
+    if (isPlayerTurn) return `▶️ À ton tour ! Joue une carte ou pioche`;
     return null;
   };
 
@@ -207,7 +216,6 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
         </div>
       </div>
 
-      {/* ✅ JOUEUR EN BAS AVEC RECTANGLE GRIS D'INSTRUCTION */}
       <div className="absolute bottom-0 left-0 right-0 z-10 flex flex-col items-center pb-4 px-4">
         <div className="relative mb-2 flex items-center gap-3 w-full max-w-md justify-center">
           <div className={`w-16 h-16 md:w-20 md:h-20 rounded-full border-4 ${isPlayerTurn ? 'border-yellow-400 animate-pulse' : 'border-white/50'} overflow-hidden shadow-2xl bg-gray-800 flex-shrink-0`}>
@@ -221,7 +229,6 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
           {isPlayerTurn && <div className="absolute -top-1 right-0 md:-right-1 bg-yellow-400 rounded-full p-1.5 shadow-lg animate-pulse"><Trophy className="w-5 h-5 text-red-700" /></div>}
         </div>
 
-        {/* ✅ RECTANGLE GRIS D'INSTRUCTION - TRÈS VISIBLE */}
         {instructionMessage && (
           <div className="mb-3 w-full max-w-md bg-gray-700/90 backdrop-blur-sm rounded-lg px-4 py-2.5 border-2 border-gray-500 shadow-lg">
             <p className="text-white text-sm md:text-base font-bold text-center">
