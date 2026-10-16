@@ -1,23 +1,14 @@
-// ✅ Calcul d'XP synchronisé pour Local et Multijoueur : +20 victoire, -2 défaite
+// ✅ Système XP synchronisé : +20 victoire, -2 défaite
 export function calculateXpReward(isWin: boolean, difficulty?: string): number {
-  if (isWin) {
-    return 20; // +20 XP pour une victoire
-  } else {
-    return -2; // -2 XP pour une défaite
-  }
+  return isWin ? 20 : -2;
 }
 
-// ✅ Calcul du niveau (1 niveau tous les 100 XP, niveau minimum 1)
 export function getLevelInfo(xp: number) {
-  // On s'assure que l'XP ne descend pas en dessous de 0 pour le calcul du niveau
   const safeXp = Math.max(0, xp);
-  const level = Math.floor(safeXp / 100) + 1;
-  const xpInCurrentLevel = safeXp % 100;
-  
   return {
-    level,
-    currentXp: xpInCurrentLevel,
+    level: Math.floor(safeXp / 100) + 1,
+    currentXp: safeXp % 100,
     requiredXp: 100,
-    progress: (xpInCurrentLevel / 100) * 100,
+    progress: ((safeXp % 100) / 100) * 100,
   };
 }
