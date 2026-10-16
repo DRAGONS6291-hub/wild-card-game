@@ -26,7 +26,7 @@ interface GameState {
   just_drew: boolean;
 }
 
-// ✅ ORDRE DES RANGS POUR LE TRI
+// ✅ Ordre des rangs pour le tri
 const RANK_ORDER: Record<string, number> = {
   '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10,
   'Jack': 11, 'Queen': 12, 'King': 13, 'Ace': 14, 'Joker': 15
@@ -106,30 +106,43 @@ export default function MultiplayerRoomPage() {
     return { newDeck, newDiscard, drawnCards };
   }
 
+  // ✅ Fonction de tri des cartes par rang
+  function sortHand(hand: GameCard[]): GameCard[] {
+    return [...hand].sort((a, b) => {
+      const rankA = RANK_ORDER[a.rank] || 0;
+      const rankB = RANK_ORDER[b.rank] || 0;
+      return rankA - rankB;
+    });
+  }
+
   useEffect(() => {
     if (!roomId || !userId) return;
     const loadRoom = async () => {
-      const { data, error } = await supabase.from('match_rooms').select('*').eq('id', roomId).single();
-      if (error || !data) { router.push('/multiplayer'); return; }
-      setRoom(data);
-      const p1 = data.player1_id === userId;
-      setIsPlayer1(p1);
-      const opponentId = p1 ? data.player2_id : data.player1_id;
-      if (opponentId) {
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('pseudo, avatar_url')
-          .eq('id', opponentId)
-          .single();
-        if (profileData) {
-          setOpponentName(profileData.pseudo);
-          setOpponentAvatar(profileData.avatar_url || `https://i.pravatar.cc/150?u=${opponentId}`);
+      try {
+        const { data, error } = await supabase.from('match_rooms').select('*').eq('id', roomId).single();
+        if (error || !data) { router.push('/multiplayer'); return; }
+        setRoom(data);
+        const p1 = data.player1_id === userId;
+        setIsPlayer1(p1);
+        const opponentId = p1 ? data.player2_id : data.player1_id;
+        if (opponentId) {
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('pseudo, avatar_url')
+            .eq('id', opponentId)
+            .single();
+          if (profileData) {
+            setOpponentName(profileData.pseudo);
+            setOpponentAvatar(profileData.avatar_url || `https://i.pravatar.cc/150?u=${opponentId}`);
+          }
         }
-      }
-      if (data.game_state) {
-        setGameState(data.game_state);
-        setIsReady(p1 ? data.game_state.player1_ready : data.game_state.player2_ready);
-        setOpponentReady(p1 ? data.game_state.player2_ready : data.game_state.player1_ready);
+        if (data.game_state) {
+          setGameState(data.game_state);
+          setIsReady(p1 ? data.game_state.player1_ready : data.game_state.player2_ready);
+          setOpponentReady(p1 ? data.game_state.player2_ready : data.game_state.player1_ready);
+        }
+      } catch (err) {
+        console.error('Erreur chargement salle:', err);
       }
       setLoading(false);
     };
@@ -296,7 +309,7 @@ export default function MultiplayerRoomPage() {
     if (myHand.length === 0) {
       winner = myId;
       status = 'finished';
-      newMessage = ` Joueur ${myId} a gagné !`;
+      newMessage = `🎉 Joueur ${myId} a gagné !`;
     }
     
     const newState: GameState = {
@@ -442,17 +455,13 @@ export default function MultiplayerRoomPage() {
   if (!room) return <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(ellipse_at_center,_#ff6b35_0%,_#d62828_40%,_#6a040f_100%)]"><p className="text-white text-xl font-bold">Salle introuvable</p></div>;
 
   const myId: 1 | 2 = isPlayer1 ? 1 : 2;
-  const myHand = gameState ? (isPlayer1 ? gameState.player1_hand : gameState.player2_hand) : [];
-  const opponentHand = gameState ? (isPlayer1 ? gameState.player2_hand : gameState.player1_hand) : [];
+  const myHand: GameCard[] = gameState ? (isPlayer1 ? gameState.player1_hand : gameState.player2_hand) : [];
+  const opponentHand: GameCard[] = gameState ? (isPlayer1 ? gameState.player2_hand : gameState.player1_hand) : [];
   const isMyTurn = gameState?.current_turn === myId && gameState?.status === 'playing';
   const justDrew = gameState?.just_drew && isMyTurn;
 
-  // ✅ TRI DES CARTES PAR RANG
-  const sortedMyHand = [...myHand].sort((a, b) => {
-    const rankA = RANK_ORDER[a.rank] || 0;
-    const rankB = RANK_ORDER[b.rank] || 0;
-    return rankA - rankB;
-  });
+  // ✅ Tri des cartes par rang (2, 3, 4... 10, V, D, R, As, Joker)
+  const sortedMyHand: GameCard[] = sortHand(myHand);
 
   const getInstructionMessage = () => {
     if (!isMyTurn) return "Attends ton tour...";
@@ -558,7 +567,7 @@ export default function MultiplayerRoomPage() {
                 {isMyTurn && <span className="bg-green-400 text-black text-xs font-bold px-3 py-1.5 rounded-full animate-pulse flex-shrink-0">Ton tour !</span>}
               </div>
               
-              {/* ✅ CARTES TRIÉES PAR RANG */}
+              {/* ✅ Cartes triées par rang */}
               <div className="flex justify-center gap-1 flex-wrap mb-3">
                 {sortedMyHand.map((card) => {
                   const playable = isMyTurn && isCardPlayable(card, gameState.top_card, gameState.forced_suit, gameState.pending_draw);
