@@ -26,7 +26,6 @@ interface GameState {
   just_drew: boolean;
 }
 
-// ✅ Ordre des rangs pour le tri
 const RANK_ORDER: Record<string, number> = {
   '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10,
   'Jack': 11, 'Queen': 12, 'King': 13, 'Ace': 14, 'Joker': 15
@@ -106,7 +105,6 @@ export default function MultiplayerRoomPage() {
     return { newDeck, newDiscard, drawnCards };
   }
 
-  // ✅ Fonction de tri des cartes par rang
   function sortHand(hand: GameCard[]): GameCard[] {
     return [...hand].sort((a, b) => {
       const rankA = RANK_ORDER[a.rank] || 0;
@@ -120,7 +118,11 @@ export default function MultiplayerRoomPage() {
     const loadRoom = async () => {
       try {
         const { data, error } = await supabase.from('match_rooms').select('*').eq('id', roomId).single();
-        if (error || !data) { router.push('/multiplayer'); return; }
+        if (error || !data) { 
+          console.error('Erreur chargement salle:', error);
+          router.push('/multiplayer'); 
+          return; 
+        }
         setRoom(data);
         const p1 = data.player1_id === userId;
         setIsPlayer1(p1);
@@ -233,7 +235,7 @@ export default function MultiplayerRoomPage() {
     if (!playable) return;
     
     setActionLocked(true);
-    const myHand = isPlayer1 ? [...gameState.player1_hand] : [...gameState.player2_hand];
+    const myHand = isPlayer1 ? [...(gameState.player1_hand || [])] : [...(gameState.player2_hand || [])];
     const cardIndex = myHand.findIndex(c => c.id === card.id);
     if (cardIndex === -1) return;
     myHand.splice(cardIndex, 1);
@@ -309,7 +311,7 @@ export default function MultiplayerRoomPage() {
     if (myHand.length === 0) {
       winner = myId;
       status = 'finished';
-      newMessage = `🎉 Joueur ${myId} a gagné !`;
+      newMessage = ` Joueur ${myId} a gagné !`;
     }
     
     const newState: GameState = {
@@ -333,14 +335,14 @@ export default function MultiplayerRoomPage() {
     setShowSuitPicker(false);
     const myId: 1 | 2 = isPlayer1 ? 1 : 2;
     const nextTurn: 1 | 2 = myId === 1 ? 2 : 1;
-    const myHand = isPlayer1 ? [...gameState.player1_hand] : [...gameState.player2_hand];
-    const opponentHand = isPlayer1 ? [...gameState.player2_hand] : [...gameState.player1_hand];
+    const myHand = isPlayer1 ? [...(gameState.player1_hand || [])] : [...(gameState.player2_hand || [])];
+    const opponentHand = isPlayer1 ? [...(gameState.player2_hand || [])] : [...(gameState.player1_hand || [])];
     let newMessage = `Joueur ${myId} choisit ${SUITS_FR[suit]}`;
-    let newDeck = gameState.deck;
-    let newDiscard = gameState.discard_pile;
+    let newDeck = gameState.deck || [];
+    let newDiscard = gameState.discard_pile || [];
 
     if (pendingCard.isJoker) {
-      const drawResult = drawCardsAutomatic(gameState.deck, gameState.discard_pile, 5);
+      const drawResult = drawCardsAutomatic(newDeck, newDiscard, 5);
       opponentHand.push(...drawResult.drawnCards);
       newDeck = drawResult.newDeck;
       newDiscard = drawResult.newDiscard;
@@ -369,8 +371,8 @@ export default function MultiplayerRoomPage() {
     setActionLocked(true);
     
     const cardsToDraw = gameState.pending_draw > 0 ? gameState.pending_draw : 1;
-    const { newDeck, newDiscard, drawnCards } = drawCardsAutomatic(gameState.deck, gameState.discard_pile, cardsToDraw);
-    const myHand = isPlayer1 ? [...gameState.player1_hand] : [...gameState.player2_hand];
+    const { newDeck, newDiscard, drawnCards } = drawCardsAutomatic(gameState.deck || [], gameState.discard_pile || [], cardsToDraw);
+    const myHand = isPlayer1 ? [...(gameState.player1_hand || [])] : [...(gameState.player2_hand || [])];
     myHand.push(...drawnCards);
     
     const newState: GameState = {
@@ -455,12 +457,12 @@ export default function MultiplayerRoomPage() {
   if (!room) return <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(ellipse_at_center,_#ff6b35_0%,_#d62828_40%,_#6a040f_100%)]"><p className="text-white text-xl font-bold">Salle introuvable</p></div>;
 
   const myId: 1 | 2 = isPlayer1 ? 1 : 2;
-  const myHand: GameCard[] = gameState ? (isPlayer1 ? gameState.player1_hand : gameState.player2_hand) : [];
-  const opponentHand: GameCard[] = gameState ? (isPlayer1 ? gameState.player2_hand : gameState.player1_hand) : [];
+  // ✅ SÉCURISATION : || [] pour éviter undefined
+  const myHand: GameCard[] = (gameState && (isPlayer1 ? gameState.player1_hand : gameState.player2_hand)) || [];
+  const opponentHand: GameCard[] = (gameState && (isPlayer1 ? gameState.player2_hand : gameState.player1_hand)) || [];
   const isMyTurn = gameState?.current_turn === myId && gameState?.status === 'playing';
   const justDrew = gameState?.just_drew && isMyTurn;
 
-  // ✅ Tri des cartes par rang (2, 3, 4... 10, V, D, R, As, Joker)
   const sortedMyHand: GameCard[] = sortHand(myHand);
 
   const getInstructionMessage = () => {
@@ -486,7 +488,7 @@ export default function MultiplayerRoomPage() {
       <div className="relative z-10 max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-4 pt-4">
           <Link href="/menu" className="flex items-center gap-2 text-white font-bold hover:text-yellow-400"><ArrowLeft className="w-5 h-5" /> Quitter</Link>
-          <h1 className="text-xl md:text-2xl font-black text-yellow-400">⚔️ MULTIJOUER</h1>
+          <h1 className="text-xl md:text-2xl font-black text-yellow-400">️ MULTIJOUER</h1>
           <div className="w-20"></div>
         </div>
         
@@ -539,7 +541,7 @@ export default function MultiplayerRoomPage() {
             
             <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-6 border-2 border-yellow-400/50 min-h-[180px] flex items-center justify-center gap-8">
               <div className="flex flex-col items-center"><p className="text-white text-xs font-bold mb-2">DÉFAUSSE</p>{gameState.top_card ? <PlayingCard card={gameState.top_card} className="w-20 h-28 md:w-24 md:h-32" /> : <div className="w-20 h-28 md:w-24 md:h-32 bg-gray-700 rounded-xl border-2 border-gray-500"></div>}</div>
-              <div className="flex flex-col items-center"><p className="text-white text-xs font-bold mb-2">PIOCHE ({gameState.deck.length})</p><button onClick={handleDraw} disabled={!isMyTurn || justDrew} className="cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-transform hover:scale-105"><PlayingCard isFaceDown className="w-20 h-28 md:w-24 md:h-32" /></button></div>
+              <div className="flex flex-col items-center"><p className="text-white text-xs font-bold mb-2">PIOCHE ({gameState.deck?.length || 0})</p><button onClick={handleDraw} disabled={!isMyTurn || justDrew} className="cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-transform hover:scale-105"><PlayingCard isFaceDown className="w-20 h-28 md:w-24 md:h-32" /></button></div>
             </div>
 
             <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border-2 border-yellow-400/50">
@@ -567,7 +569,6 @@ export default function MultiplayerRoomPage() {
                 {isMyTurn && <span className="bg-green-400 text-black text-xs font-bold px-3 py-1.5 rounded-full animate-pulse flex-shrink-0">Ton tour !</span>}
               </div>
               
-              {/* ✅ Cartes triées par rang */}
               <div className="flex justify-center gap-1 flex-wrap mb-3">
                 {sortedMyHand.map((card) => {
                   const playable = isMyTurn && isCardPlayable(card, gameState.top_card, gameState.forced_suit, gameState.pending_draw);
