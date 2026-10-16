@@ -91,9 +91,14 @@ export default function MultiplayerRoomPage() {
     return deck;
   }
 
+  // ✅ FONCTION CORRIGÉE : Les 7 de la couleur imposée sont maintenant jouables
   function isCardPlayable(card: GameCard, topCard: GameCard | null, forcedSuit: Suit | null, pendingDraw: number = 0): boolean {
+    // Si on doit piocher (7 cumulés ou Joker), seul un 7 peut contrer
     if (pendingDraw > 0) return card.rank === '7';
+    
     if (!topCard) return true;
+    
+    // Les cartes spéciales (Valet, Joker) sont toujours jouables
     if (card.isJoker || card.rank === 'Jack') return true;
     
     const cardRank = String(card.rank || '').trim();
@@ -101,11 +106,15 @@ export default function MultiplayerRoomPage() {
     const cardSuit = String(card.suit || '').trim();
     const topSuit = String(topCard.suit || '').trim();
     
+    // ✅ Si une couleur est imposée (par un Valet/Joker)
     if (forcedSuit) {
-      if (card.rank === '7') return false;
+      // On peut jouer :
+      // 1. Une carte de la couleur imposée (y compris un 7 de cette couleur !)
+      // 2. Une carte du même rang que la carte du dessus
       return card.suit === forcedSuit || cardRank === topRank;
     }
     
+    // Sinon : même couleur ou même rang
     return cardSuit === topSuit || cardRank === topRank;
   }
 
@@ -186,13 +195,12 @@ export default function MultiplayerRoomPage() {
     return () => { supabase.removeChannel(channel); };
   }, [roomId, isPlayer1]);
 
-  // ✅ SAUVEGARDE SCORE & XP - CORRIGÉ AVEC setScoreSaved(false)
+  // ✅ SAUVEGARDE SCORE & XP
   useEffect(() => {
-    // ✅ Quand la partie n'est plus terminée, on reset TOUT
     if (gameState?.status !== 'finished') {
       setXpGained(null);
       setNewLevel(null);
-      setScoreSaved(false); // ✅ C'EST ICI LE BUG ! Il faut remettre scoreSaved à false
+      setScoreSaved(false);
       return;
     }
     
