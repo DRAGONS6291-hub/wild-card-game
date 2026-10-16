@@ -185,7 +185,6 @@ export default function MultiplayerRoomPage() {
     return () => { supabase.removeChannel(channel); };
   }, [roomId, isPlayer1]);
 
-  // ✅ SAUVEGARDE + CALCUL XP + AFFICHAGE
   useEffect(() => {
     if (gameState?.status === 'finished' && profile && userId && !scoreSaved) {
       const isWin = gameState.winner === (isPlayer1 ? 1 : 2);
@@ -218,7 +217,6 @@ export default function MultiplayerRoomPage() {
             total_games: (lbData?.total_games || 0) + 1
           }).eq('id', userId);
 
-          // ✅ Stocker les XP et le nouveau niveau pour l'affichage
           setXpGained(xpReward);
           setNewLevel(calculatedNewLevel);
           setScoreSaved(true);
@@ -447,6 +445,7 @@ export default function MultiplayerRoomPage() {
     await supabase.from('match_rooms').update({ game_state: newState }).eq('id', roomId);
   };
 
+  // ✅ CORRECTION : La couleur imposée est CONSERVÉE quand on passe son tour
   const handlePassTurn = async () => {
     if (!gameState || actionLocked) return;
     if (gameState.current_turn !== myId) return;
@@ -455,7 +454,7 @@ export default function MultiplayerRoomPage() {
     const newState: GameState = {
       ...gameState,
       current_turn: nextTurn,
-      forced_suit: null,
+      forced_suit: gameState.forced_suit, // ✅ GARDE la couleur imposée (ne la remet pas à null)
       message: `Joueur ${myId} passe son tour. Au tour du Joueur ${nextTurn} !`,
       just_drew: false,
     };
@@ -571,10 +570,9 @@ export default function MultiplayerRoomPage() {
         ) : gameState.status === 'finished' ? (
           <div className="bg-white/95 rounded-2xl p-8 shadow-2xl border-2 border-yellow-400 text-center">
             <Trophy className="w-20 h-20 mx-auto text-yellow-500 mb-4" />
-            <h2 className="text-3xl font-black mb-4">{gameState.winner === myId ? ' Tu as gagné !' : '😢 Tu as perdu...'}</h2>
+            <h2 className="text-3xl font-black mb-4">{gameState.winner === myId ? '🎉 Tu as gagné !' : '😢 Tu as perdu...'}</h2>
             <p className="text-gray-600 mb-4">Vainqueur : Joueur {gameState.winner}</p>
             
-            {/* ✅ AFFICHAGE DES XP GAGNÉS/PERDUS */}
             {xpGained !== null && (
               <div className="mb-6">
                 <div className={`inline-flex items-center gap-2 px-6 py-3 rounded-xl border-2 ${
