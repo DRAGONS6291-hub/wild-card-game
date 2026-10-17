@@ -9,51 +9,43 @@ interface BannerAdProps {
 }
 
 export function BannerAd({ zoneId, width = '300px', height = '250px' }: BannerAdProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const scriptLoaded = useRef(false);
+  const hasLoaded = useRef(false);
 
   useEffect(() => {
-    if (!containerRef.current || scriptLoaded.current) return;
+    if (hasLoaded.current) return;
+    hasLoaded.current = true;
 
-    scriptLoaded.current = true;
-    const container = containerRef.current;
-
-    // Vider le conteneur
-    container.innerHTML = '';
-
-    // Créer le script Monetag
+    // On reproduit exactement la logique du script Monetag fourni
     const script = document.createElement('script');
-    script.type = 'text/javascript';
-    script.src = `https://syndication.exdynsrv.com/splash.php?idzone=${zoneId}`;
-    script.async = true;
+    script.dataset.zone = zoneId;
+    script.src = 'https://nap5k.com/tag.min.js'; // URL du format In-Page Push
     
-    // Gestion des erreurs
     script.onerror = () => {
-      console.error(`❌ Erreur chargement pub Monetag zone ${zoneId}`);
-      container.innerHTML = '<p class="text-gray-400 text-xs">Pub indisponible</p>';
+      console.warn('Publicité bloquée (Adblocker ou problème réseau)');
     };
 
-    container.appendChild(script);
+    // Le script Monetag s'attache au body ou au documentElement
+    const target = document.body || document.documentElement;
+    target.appendChild(script);
 
+    // Nettoyage quand on quitte l'écran pour éviter les fuites de mémoire
     return () => {
-      if (container) {
-        container.innerHTML = '';
+      if (target.contains(script)) {
+        target.removeChild(script);
       }
-      scriptLoaded.current = false;
+      hasLoaded.current = false;
     };
   }, [zoneId]);
 
   return (
     <div 
-      ref={containerRef}
-      className="flex items-center justify-center bg-gray-100 rounded-lg border border-gray-300"
-      style={{ 
-        width: width, 
-        minHeight: height,
-        minWidth: width 
-      }}
+      className="flex flex-col items-center justify-center bg-gray-50 rounded-lg border-2 border-dashed border-gray-300"
+      style={{ width: width, minHeight: height, minWidth: width }}
     >
-      <span className="text-gray-400 text-xs select-none">Chargement...</span>
+      <span className="text-gray-400 text-xs font-bold uppercase mb-1">Publicité</span>
+      <span className="text-gray-400 text-[10px] text-center px-2">
+        (Le format In-Page Push peut s'afficher légèrement en dehors de ce cadre)
+      </span>
     </div>
   );
 }

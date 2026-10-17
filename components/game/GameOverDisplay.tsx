@@ -192,7 +192,7 @@ export function GameOverDisplay({
         {/* ✅ ZONE PUBLICITAIRE AVEC ZONE ID CORRIGÉ */}
         <div className="my-6 p-4 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 overflow-hidden flex flex-col items-center">
           <p className="text-xs text-gray-400 mb-2 font-bold uppercase tracking-wider">Publicité</p>
-          <BannerAd zoneId="12026343" width="300px" height="250px" />
+          <BannerAd zoneId="12054544" width="300px" height="250px" />
         </div>
 
         {/* ✅ BOUTONS D'ACTION AVEC COMPTE À REBOURS */}
