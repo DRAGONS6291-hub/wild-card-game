@@ -1,7 +1,7 @@
 'use client';
 import { Button } from "@/components/ui/button";
 import { Trophy, Loader2, Sparkles, Star, Home, Clock } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSound } from '@/hooks/useSound';
 import { BannerAd } from '@/components/ads/BannerAd';
@@ -42,75 +42,44 @@ export function GameOverDisplay({
   const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>([]);
   const [showRewards, setShowRewards] = useState(false);
   
-  // ✅ COMPTE À REBOURS DE 5 SECONDES
+  // ✅ COMPTE À REBOURS DE 5 SECONDES POUR LES BOUTONS
   const [waitTime, setWaitTime] = useState(5);
-  const [soundPlayCount, setSoundPlayCount] = useState(0);
-  const MAX_SOUND_PLAYS = 3; // ✅ Limite à 3 répétitions
+
+  // ✅ RÉFÉRENCES POUR LE SON (Beaucoup plus fiable que useState pour les boucles)
+  const soundTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const playCountRef = useRef(0);
+  const MAX_PLAYS = 3;
 
   useEffect(() => {
     let winnerName = '';
     if (typeof winner === 'string') winnerName = winner;
     else if (winner && typeof winner === 'object' && 'name' in winner) winnerName = winner.name;
     
+    // Réinitialiser le compteur à chaque nouvel affichage de l'écran de fin
+    playCountRef.current = 0;
+    
     if (winnerName === 'player') {
-      // ✅ Jouer le son de victoire en boucle limitée à 3 fois
-      const playSoundLoop = () => {
-        if (soundPlayCount < MAX_SOUND_PLAYS) {
+      const triggerSound = () => {
+        if (playCountRef.current < MAX_PLAYS) {
           playVictory();
-          setSoundPlayCount(prev => prev + 1);
-          
-          // Le son dure environ 2-3 secondes, on rejoue après
-          const timeout = setTimeout(playSoundLoop, 2500);
-          return () => clearTimeout(timeout);
+          playCountRef.current += 1;
+          // Programme la prochaine lecture dans 2.5 secondes
+          soundTimerRef.current = setTimeout(triggerSound, 2500);
         }
       };
-      
-      playSoundLoop();
+      triggerSound();
     } else {
       playDefeat();
     }
 
-    // Calculer et appliquer les récompenses
-    if (userId && currentStats) {
-      const won = winnerName === 'player';
-      const xpReward = calculateXpReward(won, difficulty);
-      const newXp = Math.max(0, currentStats.xp + xpReward);
-      const levelInfo = getLevelInfo(newXp);
-      
-      setXpGained(xpReward);
-      if (levelInfo.level > currentStats.level) {
-        setNewLevel(levelInfo.level);
-      }
-
-      supabase
-        .from('profiles')
-        .update({ xp: newXp, level: levelInfo.level })
-        .eq('id', userId);
-
-      checkAndUnlockAchievements(userId, {
-        wins: won ? currentStats.wins + 1 : currentStats.wins,
-        totalGames: currentStats.totalGames + 1,
-        level: levelInfo.level,
-        totalXp: newXp,
-        wonOnHard: won && difficulty === 'hard',
-      }).then((newlyUnlocked) => {
-        if (newlyUnlocked.length > 0) {
-          setUnlockedAchievements(newlyUnlocked);
-          if (typeof playAchievement === 'function') playAchievement();
-        }
-        setShowRewards(true);
-      });
-    } else {
-      setShowRewards(true);
-    }
-  }, [winner, userId, currentStats, difficulty, playVictory, playDefeat, playAchievement, soundPlayCount]);
-
-  // ✅ Réinitialiser le compteur quand on quitte l'écran
-  useEffect(() => {
+    // 🛑 NETTOYAGE OBLIGATOIRE : Arrête tout immédiatement quand on quitte l'écran (ex: retour au menu)
     return () => {
-      setSoundPlayCount(0);
+      if (soundTimerRef.current) {
+        clearTimeout(soundTimerRef.current);
+        soundTimerRef.current = null;
+      }
     };
-  }, []);
+  }, [winner, playVictory, playDefeat]); // Dépendances simplifiées pour éviter les boucles infinies
 
   // ✅ COMPTE À REBOURS AUTOMATIQUE (décrémente chaque seconde)
   useEffect(() => {
@@ -121,14 +90,22 @@ export function GameOverDisplay({
   }, [waitTime]);
 
   const handlePlayAgain = () => {
-    if (waitTime > 0) return; // ✅ Empêche le clic avant la fin du compte à rebours
-    setSoundPlayCount(0); // ✅ Reset du compteur
+    if (waitTime > 0) return;
+    // Nettoyage manuel du son si on rejoue immédiatement
+    if (soundTimerRef.current) {
+      clearTimeout(soundTimerRef.current);
+      soundTimerRef.current = null;
+    }
     onPlayAgain();
   };
 
   const handleQuit = () => {
-    if (waitTime > 0) return; // ✅ Empêche le clic avant la fin du compte à rebours
-    setSoundPlayCount(0); // ✅ Reset du compteur
+    if (waitTime > 0) return;
+    // Nettoyage manuel du son si on quitte immédiatement
+    if (soundTimerRef.current) {
+      clearTimeout(soundTimerRef.current);
+      soundTimerRef.current = null;
+    }
     router.push('/menu');
   };
 
@@ -195,10 +172,10 @@ export function GameOverDisplay({
                     <div key={id} className="text-sm bg-white/70 px-3 py-1 rounded-full">
                       {id === 'first_win' && '🏆 Première Victoire'}
                       {id === 'win_10' && '⚔️ Guerrier'}
-                      {id === 'win_50' && ' Champion'}
+                      {id === 'win_50' && '👑 Champion'}
                       {id === 'win_100' && '🌟 Légende'}
-                      {id === 'play_10' && ' Habitué'}
-                      {id === 'play_50' && ' Accro'}
+                      {id === 'play_10' && '🎮 Habitué'}
+                      {id === 'play_50' && '🔥 Accro'}
                       {id === 'play_100' && '💪 Vétéran'}
                       {id === 'hard_win' && '🧠 Maître Stratège'}
                       {id === 'level_5' && '📈 Niveau 5'}
