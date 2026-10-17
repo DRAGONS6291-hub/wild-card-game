@@ -4,13 +4,15 @@ import { useRouter, useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, Trophy, Sparkles, Home, SkipForward, TrendingUp, TrendingDown } from 'lucide-react';
+import { ArrowLeft, Loader2, Trophy, Sparkles, Home, SkipForward, TrendingUp, TrendingDown, Clock } from 'lucide-react';
 import Link from 'next/link';
 import { PlayingCard } from '@/components/game/PlayingCard';
 import { Confetti } from '@/components/game/Confetti';
 import { GameCard, Suit, SUITS_FR } from '@/lib/game-types';
 import { useToast } from '@/hooks/use-toast';
 import { useSound } from '@/hooks/useSound';
+import { AdsterraBanner } from '@/components/ads/AdsterraBanner';
+import { BannerAd } from '@/components/ads/BannerAd';
 
 const RANK_ORDER: Record<string, number> = {
   '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10,
@@ -58,7 +60,12 @@ export default function MultiplayerRoomPage() {
   const [xpGained, setXpGained] = useState<number | null>(null);
   const [newLevel, setNewLevel] = useState<number | null>(null);
   const [gameKey, setGameKey] = useState(0);
-  const [gameId, setGameId] = useState<string>(''); // ✅ ID unique de partie
+  const [gameId, setGameId] = useState<string>('');
+  
+  // ✅ NOUVEAUX ÉTATS POUR LE COMPTE À REBOURS ET LE SON
+  const [waitTime, setWaitTime] = useState(5);
+  const [soundPlayCount, setSoundPlayCount] = useState(0);
+  const MAX_SOUND_PLAYS = 3;
 
   const playerAvatar = profile?.avatar_url || `https://i.pravatar.cc/150?u=${userId}`;
 
@@ -186,6 +193,27 @@ export default function MultiplayerRoomPage() {
     return () => { supabase.removeChannel(channel); };
   }, [roomId, isPlayer1]);
 
+  // ✅ COMPTE À REBOURS AUTOMATIQUE (décrémente chaque seconde quand la partie est finie)
+  useEffect(() => {
+    if (gameState?.status === 'finished' && waitTime > 0) {
+      const timer = setTimeout(() => setWaitTime(waitTime - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [gameState?.status, waitTime]);
+
+  // ✅ BOUCLE SONORE LIMITÉE À 3 RÉPÉTITIONS
+  useEffect(() => {
+    if (gameState?.status === 'finished' && gameState?.winner === (isPlayer1 ? 1 : 2)) {
+      if (soundPlayCount < MAX_SOUND_PLAYS) {
+        playVictory();
+        const timer = setTimeout(() => {
+          setSoundPlayCount(prev => prev + 1);
+        }, 2500); // Joue toutes les 2.5 secondes
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [gameState?.status, gameState?.winner, isPlayer1, soundPlayCount, playVictory]);
+
   // ✅ SAUVEGARDE SCORE & XP - AVEC PROTECTION CONTRE DOUBLE SAUVEGARDE
   useEffect(() => {
     if (gameState?.status !== 'finished') {
@@ -195,20 +223,15 @@ export default function MultiplayerRoomPage() {
       return;
     }
     
-    // ✅ Vérifier si on a déjà sauvegardé pour ce gameId
     const savedKey = `saved_${gameId}`;
     if (sessionStorage.getItem(savedKey) === 'true') {
-      return; // Déjà sauvegardé, on ne fait rien
+      return;
     }
     
     if (profile && userId && !scoreSaved && gameId) {
       const isWin = gameState.winner === (isPlayer1 ? 1 : 2);
       
-      if (isWin) {
-        setShowConfetti(true);
-        playVictory();
-        setTimeout(() => setShowConfetti(false), 6000);
-      } else {
+      if (!isWin) {
         playDefeat();
       }
 
@@ -255,9 +278,7 @@ export default function MultiplayerRoomPage() {
             });
           }
 
-          // ✅ Marquer comme sauvegardé dans sessionStorage
           sessionStorage.setItem(savedKey, 'true');
-          
           setXpGained(xpReward);
           setNewLevel(calculatedNewLevel);
           setScoreSaved(true);
@@ -265,11 +286,10 @@ export default function MultiplayerRoomPage() {
       };
       saveScoreAndXp();
     }
-  }, [gameState?.status, gameState?.winner, profile, userId, scoreSaved, isPlayer1, myHand.length, playVictory, playDefeat, gameKey, gameId]);
+  }, [gameState?.status, gameState?.winner, profile, userId, scoreSaved, isPlayer1, myHand.length, playDefeat, gameId]);
 
   const handleReady = async () => {
     if (!room) return;
-    // ✅ Générer un ID unique pour cette partie
     const newGameId = `${roomId}-${Date.now()}`;
     setGameId(newGameId);
     sessionStorage.setItem(`game_${newGameId}`, 'pending');
@@ -507,14 +527,18 @@ export default function MultiplayerRoomPage() {
   };
 
   const handleNewGame = async () => {
-    if (!room) return;
-    sessionStorage.clear(); // ✅ Nettoyer le sessionStorage
+    if (waitTime > 0) return; // ✅ Bloque l'action pendant le compte à rebours
+    
+    setSoundPlayCount(0); // ✅ Reset du compteur de son
+    sessionStorage.clear();
     setScoreSaved(false);
     setShowConfetti(false);
     setXpGained(null);
     setNewLevel(null);
     setGameKey(k => k + 1);
+    setWaitTime(5); // ✅ Reset du compte à rebours
     setActionLocked(true);
+    
     const deck = createShuffledDeck();
     const p1Hand = deck.splice(0, 7);
     const p2Hand = deck.splice(0, 7);
@@ -558,10 +582,12 @@ export default function MultiplayerRoomPage() {
     await supabase.from('match_rooms').update({ game_state: newState, status: 'playing', winner_id: null }).eq('id', roomId);
   };
 
-  // ✅ Utiliser router.replace() au lieu de router.push()
   const handleQuit = () => { 
-    sessionStorage.clear(); // ✅ Nettoyer le sessionStorage
-    router.replace('/menu'); // ✅ replace au lieu de push (empêche le retour navigateur)
+    if (waitTime > 0) return; // ✅ Bloque l'action pendant le compte à rebours
+    
+    setSoundPlayCount(0); // ✅ Reset du compteur de son
+    sessionStorage.clear();
+    router.replace('/menu');
   };
 
   const getInstructionMessage = () => {
@@ -655,13 +681,49 @@ export default function MultiplayerRoomPage() {
                 )}
               </div>
             )}
+
+            {/* ✅ BANNIÈRE ADSTERRA 300x250 + PUB MONETAG CACHÉE */}
+            <div className="hidden">
+              <BannerAd zoneId="12054544" />
+            </div>
+            <div className="my-6 flex justify-center">
+              <AdsterraBanner type="banner300x250" />
+            </div>
             
             <div className="space-y-3 max-w-md mx-auto">
-              <Button onClick={handleNewGame} className="bg-gradient-to-b from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-black font-black border-b-4 border-yellow-800 py-6 text-lg w-full">
-                <Sparkles className="w-5 h-5 mr-2" /> Nouvelle partie
+              <Button 
+                onClick={handleNewGame} 
+                disabled={waitTime > 0}
+                className={`py-6 text-lg w-full flex items-center justify-center gap-2 font-black border-b-4 shadow-lg transition-all ${
+                  waitTime > 0 
+                    ? 'bg-gray-300 text-gray-500 border-gray-400 cursor-not-allowed' 
+                    : 'bg-gradient-to-b from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-black border-yellow-800'
+                }`}
+              >
+                {waitTime > 0 ? (
+                  <>
+                    <Clock className="w-5 h-5 animate-pulse" />
+                    Attendez {waitTime}s...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-5 h-5" /> Nouvelle partie
+                  </>
+                )}
               </Button>
-              <Button onClick={handleQuit} variant="outline" className="w-full py-6 text-lg font-bold border-2 border-gray-300 text-gray-700 hover:bg-gray-100 hover:border-gray-400">
-                <Home className="w-5 h-5 mr-2" /> Retour au menu
+              
+              <Button 
+                onClick={handleQuit} 
+                disabled={waitTime > 0}
+                variant="outline" 
+                className={`w-full py-6 text-lg font-bold flex items-center justify-center gap-2 transition-all ${
+                  waitTime > 0
+                    ? 'text-gray-400 border-gray-200 cursor-not-allowed'
+                    : 'border-2 border-gray-300 text-gray-700 hover:bg-gray-100 hover:border-gray-400'
+                }`}
+              >
+                <Home className="w-5 h-5" />
+                Retour au menu
               </Button>
             </div>
           </div>
