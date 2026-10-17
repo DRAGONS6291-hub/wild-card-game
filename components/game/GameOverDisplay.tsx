@@ -189,10 +189,14 @@ export function GameOverDisplay({
           </div>
         )}
 
-        {/* ✅ ZONE PUBLICITAIRE AVEC ZONE ID CORRIGÉ */}
-        <div className="my-6 p-4 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 overflow-hidden flex flex-col items-center">
-          <p className="text-xs text-gray-400 mb-2 font-bold uppercase tracking-wider">Publicité</p>
-          <BannerAd zoneId="12054544" width="300px" height="250px" />
+        {/* ✅ PUB MONETAG (invisible mais nécessaire pour charger le script) */}
+        <div className="hidden">
+          <BannerAd zoneId="12054544" />
+        </div>
+
+        {/* ✅ Petit rectangle "Sponsorisé" discret */}
+        <div className="my-4 p-2 bg-gray-50 rounded-lg border border-gray-300">
+          <p className="text-[10px] text-gray-400 text-center font-bold uppercase">Sponsorisé</p>
         </div>
 
         {/* ✅ BOUTONS D'ACTION AVEC COMPTE À REBOURS */}
