@@ -1,6 +1,6 @@
 'use client';
 import { Button } from "@/components/ui/button";
-import { Trophy, Loader2, Sparkles, Star, Home } from 'lucide-react';
+import { Trophy, Loader2, Sparkles, Star, Home, Clock } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSound } from '@/hooks/useSound';
@@ -35,11 +35,14 @@ export function GameOverDisplay({
 }: GameOverDisplayProps) {
   const router = useRouter();
   const { playVictory, playDefeat, playAchievement } = useSound();
-  const [isAdLoading, setIsAdLoading] = useState(false);
+  
   const [xpGained, setXpGained] = useState(0);
   const [newLevel, setNewLevel] = useState<number | null>(null);
   const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>([]);
   const [showRewards, setShowRewards] = useState(false);
+  
+  // ✅ COMPTE À REBOURS DE 5 SECONDES
+  const [waitTime, setWaitTime] = useState(5);
 
   useEffect(() => {
     let winnerName = '';
@@ -56,7 +59,7 @@ export function GameOverDisplay({
     if (userId && currentStats) {
       const won = winnerName === 'player';
       const xpReward = calculateXpReward(won, difficulty);
-      const newXp = Math.max(0, currentStats.xp + xpReward); // Empêcher les XP négatifs
+      const newXp = Math.max(0, currentStats.xp + xpReward);
       const levelInfo = getLevelInfo(newXp);
       
       setXpGained(xpReward);
@@ -64,13 +67,11 @@ export function GameOverDisplay({
         setNewLevel(levelInfo.level);
       }
 
-      // Mettre à jour l'XP et le niveau dans la base
       supabase
         .from('profiles')
         .update({ xp: newXp, level: levelInfo.level })
         .eq('id', userId);
 
-      // Vérifier les succès
       checkAndUnlockAchievements(userId, {
         wins: won ? currentStats.wins + 1 : currentStats.wins,
         totalGames: currentStats.totalGames + 1,
@@ -87,26 +88,23 @@ export function GameOverDisplay({
     } else {
       setShowRewards(true);
     }
-  }, [winner, userId, currentStats, difficulty]);
+  }, [winner, userId, currentStats, difficulty, playVictory, playDefeat, playAchievement]);
+
+  // ✅ COMPTE À REBOURS AUTOMATIQUE (décrémente chaque seconde)
+  useEffect(() => {
+    if (waitTime > 0) {
+      const timer = setTimeout(() => setWaitTime(waitTime - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [waitTime]);
 
   const handlePlayAgain = () => {
-    setIsAdLoading(true);
-    
-    const script = document.createElement('script');
-    script.dataset.zone = '12026343';
-    script.src = 'https://n6wxm.com/vignette.min.js';
-    document.body.appendChild(script);
-
-    setTimeout(() => {
-      onPlayAgain();
-      setIsAdLoading(false);
-      if (document.body.contains(script)) {
-        document.body.removeChild(script);
-      }
-    }, 5000);
+    if (waitTime > 0) return; // ✅ Empêche le clic avant la fin du compte à rebours
+    onPlayAgain();
   };
 
   const handleQuit = () => {
+    if (waitTime > 0) return; // ✅ Empêche le clic avant la fin du compte à rebours
     router.push('/menu');
   };
 
@@ -129,20 +127,18 @@ export function GameOverDisplay({
   return (
     <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-50 animate-in fade-in-50">
       <style>{`@keyframes fall { 0% { transform: translateY(-10vh) rotate(0deg); } 100% { transform: translateY(110vh) rotate(720deg); } }`}</style>
-      {confetti}
-      <div className="bg-white p-8 rounded-2xl shadow-2xl text-center z-10 max-w-md border-4 border-yellow-400 w-[90%] max-h-[90vh] overflow-y-auto">
+      {winnerName === 'player' && confetti}
+      
+      <div className="bg-white p-6 md:p-8 rounded-2xl shadow-2xl text-center z-10 max-w-md border-4 border-yellow-400 w-[90%] max-h-[90vh] overflow-y-auto">
         <Trophy className="w-16 h-16 mx-auto text-yellow-500 mb-4" />
-        <h2 className="text-3xl font-black mb-4 text-gray-800">{message}</h2>
+        <h2 className="text-2xl md:text-3xl font-black mb-4 text-gray-800">{message}</h2>
         
         {/* Récompenses XP et succès */}
         {showRewards && (xpGained !== 0 || newLevel || unlockedAchievements.length > 0) && (
           <div className="my-4 p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border-2 border-purple-200 space-y-3">
-            {/* Affichage XP gagné/perdu */}
             {xpGained !== 0 && (
               <div className={`flex items-center justify-center gap-2 font-bold ${
-                xpGained > 0 
-                  ? 'text-purple-700' 
-                  : 'text-red-600'
+                xpGained > 0 ? 'text-purple-700' : 'text-red-600'
               }`}>
                 {xpGained > 0 ? (
                   <>
@@ -176,9 +172,9 @@ export function GameOverDisplay({
                       {id === 'first_win' && '🏆 Première Victoire'}
                       {id === 'win_10' && '⚔️ Guerrier'}
                       {id === 'win_50' && '👑 Champion'}
-                      {id === 'win_100' && ' Légende'}
+                      {id === 'win_100' && '🌟 Légende'}
                       {id === 'play_10' && '🎮 Habitué'}
-                      {id === 'play_50' && ' Accro'}
+                      {id === 'play_50' && '🔥 Accro'}
                       {id === 'play_100' && '💪 Vétéran'}
                       {id === 'hard_win' && '🧠 Maître Stratège'}
                       {id === 'level_5' && '📈 Niveau 5'}
@@ -193,23 +189,28 @@ export function GameOverDisplay({
           </div>
         )}
 
-        <div className="my-6 p-4 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 overflow-hidden">
+        {/* ✅ ZONE PUBLICITAIRE AVEC ZONE ID CORRIGÉ */}
+        <div className="my-6 p-4 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 overflow-hidden flex flex-col items-center">
           <p className="text-xs text-gray-400 mb-2 font-bold uppercase tracking-wider">Publicité</p>
-          <BannerAd />
+          <BannerAd zoneId="12026343" width="300px" height="250px" />
         </div>
 
-        {/* BOUTONS D'ACTION */}
+        {/* ✅ BOUTONS D'ACTION AVEC COMPTE À REBOURS */}
         <div className="space-y-3">
           <Button 
             onClick={handlePlayAgain} 
-            disabled={isAdLoading}
+            disabled={waitTime > 0}
             size="lg" 
-            className="bg-gradient-to-b from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-black font-black border-b-4 border-yellow-800 shadow-lg w-full py-6 text-lg flex items-center justify-center gap-2"
+            className={`w-full py-6 text-lg flex items-center justify-center gap-2 font-black border-b-4 shadow-lg transition-all ${
+              waitTime > 0 
+                ? 'bg-gray-300 text-gray-500 border-gray-400 cursor-not-allowed' 
+                : 'bg-gradient-to-b from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-black border-yellow-800'
+            }`}
           >
-            {isAdLoading ? (
+            {waitTime > 0 ? (
               <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Chargement de la partie...
+                <Clock className="w-5 h-5 animate-pulse" />
+                Attendez {waitTime}s...
               </>
             ) : (
               'Rejouer'
@@ -218,9 +219,14 @@ export function GameOverDisplay({
 
           <Button 
             onClick={handleQuit}
+            disabled={waitTime > 0}
             variant="outline"
             size="lg"
-            className="w-full py-6 text-lg font-bold border-2 border-gray-300 text-gray-700 hover:bg-gray-100 hover:border-gray-400 flex items-center justify-center gap-2"
+            className={`w-full py-6 text-lg font-bold flex items-center justify-center gap-2 transition-all ${
+              waitTime > 0
+                ? 'text-gray-400 border-gray-200 cursor-not-allowed'
+                : 'border-2 border-gray-300 text-gray-700 hover:bg-gray-100 hover:border-gray-400'
+            }`}
           >
             <Home className="w-5 h-5" />
             Retour au menu
