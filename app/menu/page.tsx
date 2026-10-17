@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -8,6 +8,7 @@ import { SoundLink } from '@/components/ui/SoundLink';
 import { BannerAd } from '@/components/ads/BannerAd';
 import { Play, Trophy, User, Settings, LogOut, Heart, Club, Diamond, Sword, BookOpen } from 'lucide-react';
 
+// Version stable - avant intégration pubs Monetag
 export default function MenuPage() {
   const router = useRouter();
   const { profile, userId } = useAuth();
@@ -169,5 +170,4 @@ export default function MenuPage() {
       </div>
     </div>
   );
-}/ /   F o r c e   r e b u i l d  
- 
+}
