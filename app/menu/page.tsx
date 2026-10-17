@@ -1,14 +1,14 @@
-﻿'use client';
+'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { SoundButton } from '@/components/ui/SoundButton';
 import { SoundLink } from '@/components/ui/SoundLink';
-import { BannerAd } from '@/components/ads/BannerAd';
+import { AdsterraBanner } from '@/components/ads/AdsterraBanner';
 import { Play, Trophy, User, Settings, LogOut, Heart, Club, Diamond, Sword, BookOpen } from 'lucide-react';
 
-// Version stable - avant intégration pubs Monetag
+// Version stable - avec intégration Adsterra
 export default function MenuPage() {
   const router = useRouter();
   const { profile, userId } = useAuth();
@@ -140,7 +140,6 @@ export default function MenuPage() {
               </button>
             </SoundLink>
 
-            {/* ✅ NOUVEAU BOUTON RÈGLES DU JEU */}
             <SoundLink href="/rules" className="w-full">
               <button className="w-full bg-gradient-to-b from-indigo-500 to-indigo-700 hover:from-indigo-600 hover:to-indigo-800 text-white font-bold border-b-4 border-indigo-900 shadow-lg py-4 flex items-center justify-center gap-2">
                 <BookOpen className="w-5 h-5" /> Règles du jeu
@@ -162,11 +161,17 @@ export default function MenuPage() {
           </div>
         </div>
 
-        {/* Bannière discrète */}
-        <div className="mt-6 p-3 bg-black/40 rounded-xl border border-yellow-400/30 flex flex-col items-center">
-          <p className="text-[10px] text-yellow-400/60 font-bold mb-1 uppercase tracking-widest">Sponsorisé</p>
-          <BannerAd />
+        {/* ✅ BANNIÈRE ADSTERRA 728x90 */}
+        <div className="mt-6 bg-gradient-to-r from-red-900/80 to-red-800/80 rounded-xl p-4 border-2 border-yellow-400/50">
+          <p className="text-yellow-400 text-xs font-bold text-center mb-3 uppercase tracking-wider">
+            Sponsorisé
+          </p>
+          
+          <div className="flex justify-center">
+            <AdsterraBanner type="banner728x90" />
+          </div>
         </div>
+
       </div>
     </div>
   );

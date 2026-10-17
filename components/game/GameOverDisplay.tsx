@@ -5,6 +5,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSound } from '@/hooks/useSound';
 import { BannerAd } from '@/components/ads/BannerAd';
+import { AdsterraBanner } from '@/components/ads/AdsterraBanner';
 import { calculateXpReward, getLevelInfo } from '@/lib/level-system';
 import { checkAndUnlockAchievements } from '@/lib/achievements';
 import { supabase } from '@/lib/supabase';
@@ -171,10 +172,10 @@ export function GameOverDisplay({
                     <div key={id} className="text-sm bg-white/70 px-3 py-1 rounded-full">
                       {id === 'first_win' && '🏆 Première Victoire'}
                       {id === 'win_10' && '⚔️ Guerrier'}
-                      {id === 'win_50' && '👑 Champion'}
+                      {id === 'win_50' && ' Champion'}
                       {id === 'win_100' && '🌟 Légende'}
                       {id === 'play_10' && '🎮 Habitué'}
-                      {id === 'play_50' && '🔥 Accro'}
+                      {id === 'play_50' && ' Accro'}
                       {id === 'play_100' && '💪 Vétéran'}
                       {id === 'hard_win' && '🧠 Maître Stratège'}
                       {id === 'level_5' && '📈 Niveau 5'}
@@ -194,9 +195,9 @@ export function GameOverDisplay({
           <BannerAd zoneId="12054544" />
         </div>
 
-        {/* ✅ Petit rectangle "Sponsorisé" discret */}
-        <div className="my-4 p-2 bg-gray-50 rounded-lg border border-gray-300">
-          <p className="text-[10px] text-gray-400 text-center font-bold uppercase">Sponsorisé</p>
+        {/* ✅ BANNIÈRE ADSTERRA 300x250 */}
+        <div className="my-6 flex justify-center">
+          <AdsterraBanner type="banner300x250" />
         </div>
 
         {/* ✅ BOUTONS D'ACTION AVEC COMPTE À REBOURS */}
