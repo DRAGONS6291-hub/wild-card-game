@@ -30,7 +30,7 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
   const [gameTime, setGameTime] = useState(0);
   const [autoDrawMessage, setAutoDrawMessage] = useState<string | null>(null);
   const [scoreSaved, setScoreSaved] = useState(false);
-  const [gameKey, setGameKey] = useState(0); // ✅ Identifiant unique de partie
+  const [gameKey, setGameKey] = useState(0);
   const { toast } = useToast();
 
   const gameStateRef = useRef(gameState);
@@ -146,7 +146,7 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
   const handleEndTurn = () => onAction({ type: 'END_TURN' });
   const handleSuitChoice = (suit: Suit) => onAction({ type: 'SET_SUIT', suit });
   const handlePlayAgain = () => {
-    setGameKey(k => k + 1); // ✅ Incrémente l'identifiant pour forcer le re-déclenchement
+    setGameKey(k => k + 1);
     onAction({ type: 'NEW_GAME' });
   };
 
@@ -175,18 +175,25 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
   const instructionMessage = getInstructionMessage();
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden bg-[radial-gradient(ellipse_at_center,_#ff6b35_0%,_#d62828_40%,_#6a040f_100%)]">
+    <div className="relative w-full h-[100dvh] flex flex-col overflow-hidden bg-[radial-gradient(ellipse_at_center,_#ff6b35_0%,_#d62828_40%,_#6a040f_100%)]">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(255,200,0,0.3)_0%,_transparent_60%)]"></div>
-      <div className="absolute inset-2 border-4 border-yellow-400/60 rounded-3xl pointer-events-none"></div>
+      <div className="absolute inset-1 md:inset-4 border-2 md:border-8 border-yellow-400/60 rounded-2xl md:rounded-3xl pointer-events-none"></div>
       <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 20px, rgba(255,215,0,0.05) 20px, rgba(255,215,0,0.05) 40px)` }}></div>
 
       {winner && <GameOverDisplay winner={winner} onPlayAgain={handlePlayAgain} difficulty={gameState.difficulty || 'medium'} userId={userId ?? undefined} currentStats={{ wins: 0, totalGames: 0, xp: profile?.xp || 0, level: profile?.level || 1 }} />}
       <SuitChoiceDialog isOpen={isSuitPickerOpen} onSuitChoose={handleSuitChoice} playerHand={playerHand} />
 
-      <div className="absolute top-6 left-6 z-20 bg-black/60 backdrop-blur-sm text-yellow-400 font-bold text-2xl px-4 py-2 rounded-lg border-2 border-yellow-400/50 shadow-lg">⏱️ {formatTime(gameTime)}</div>
-      <div className="absolute top-6 right-6 z-20">
+      {/*  ZONE 1 : Timer et bouton Quitter (en haut) */}
+      <div className="relative z-20 flex-shrink-0 flex justify-between items-center p-2 md:p-4">
+        <div className="bg-black/60 backdrop-blur-sm text-yellow-400 font-bold text-sm md:text-xl px-2 md:px-4 py-1 md:py-2 rounded-lg border border-yellow-400/50 shadow-lg">
+          ⏱️ {formatTime(gameTime)}
+        </div>
         <AlertDialog>
-          <AlertDialogTrigger asChild><Button variant="destructive" className="bg-red-600 hover:bg-red-700 border-b-4 border-red-900 font-bold shadow-lg">Quitter</Button></AlertDialogTrigger>
+          <AlertDialogTrigger asChild>
+            <Button variant="destructive" size="sm" className="bg-red-600 hover:bg-red-700 border-b-2 md:border-b-4 border-red-900 font-bold shadow-lg text-xs md:text-base px-2 md:px-4 py-1 md:py-2">
+              Quitter
+            </Button>
+          </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader><AlertDialogTitle>Quitter la partie ?</AlertDialogTitle><AlertDialogDescription>La partie en cours sera perdue.</AlertDialogDescription></AlertDialogHeader>
             <AlertDialogFooter><AlertDialogCancel>Non</AlertDialogCancel><AlertDialogAction asChild><Link href="/menu">Oui</Link></AlertDialogAction></AlertDialogFooter>
@@ -194,76 +201,117 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
         </AlertDialog>
       </div>
 
-      <div className="absolute top-8 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center">
-        <div className="relative mb-2">
-          <div className={`w-20 h-20 rounded-full border-4 ${currentPlayer === 'ai' ? 'border-yellow-400 animate-pulse' : 'border-white/50'} overflow-hidden shadow-2xl bg-gray-800`}>
+      {/*  ZONE 2 : IA (adversaire en haut) */}
+      <div className="relative z-10 flex-shrink-0 flex flex-col items-center px-2 py-1 md:py-2">
+        <div className="relative mb-1">
+          <div className={`w-12 h-12 md:w-20 md:h-20 rounded-full border-2 md:border-4 ${currentPlayer === 'ai' ? 'border-yellow-400 animate-pulse' : 'border-white/50'} overflow-hidden shadow-2xl bg-gray-800`}>
             <img src={AVATARS.ai} alt="IA" className="w-full h-full object-cover" />
           </div>
-          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-red-600 text-white text-xs font-bold px-3 py-1 rounded-full border-2 border-white shadow-lg whitespace-nowrap">IA</div>
-          {currentPlayer === 'ai' && <div className="absolute -top-1 -right-1 bg-yellow-400 rounded-full p-1 shadow-lg"><Trophy className="w-4 h-4 text-red-700" /></div>}
+          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-red-600 text-white text-[10px] md:text-xs font-bold px-2 md:px-3 py-0.5 md:py-1 rounded-full border border-white shadow-lg whitespace-nowrap">IA</div>
+          {currentPlayer === 'ai' && <div className="absolute -top-1 -right-1 bg-yellow-400 rounded-full p-0.5 md:p-1 shadow-lg"><Trophy className="w-3 h-3 md:w-4 md:h-4 text-red-700" /></div>}
         </div>
-        <div className="flex -space-x-8">{aiHand.map((_, index) => <div key={index} style={{ transform: `rotate(${(index - aiHand.length/2) * 3}deg)` }}><PlayingCard isFaceDown className="w-14 h-20 md:w-16 md:h-24" /></div>)}</div>
-        <div className="mt-2 bg-black/60 text-white text-sm font-bold px-3 py-1 rounded-full border border-yellow-400/50">{aiHand.length} cartes</div>
+        <div className="flex -space-x-4 md:-space-x-8 overflow-hidden">
+          {aiHand.slice(0, 8).map((_, index) => (
+            <div key={index} style={{ transform: `rotate(${(index - Math.min(aiHand.length, 8)/2) * 3}deg)` }}>
+              <PlayingCard isFaceDown className="w-9 h-12 md:w-16 md:h-24" />
+            </div>
+          ))}
+        </div>
+        <div className="mt-1 bg-black/60 text-white text-[10px] md:text-sm font-bold px-2 md:px-3 py-0.5 rounded-full border border-yellow-400/50">
+          {aiHand.length} cartes
+        </div>
       </div>
 
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 flex items-center gap-8">
-        <div className="flex flex-col items-center">
-          <div className="relative"><PlayingCard card={topCard} className="w-28 h-40 md:w-32 md:h-44 shadow-2xl" />
-            {pendingDraw > 0 && <div className="absolute -top-3 -right-3 bg-red-600 text-white font-bold rounded-full w-10 h-10 flex items-center justify-center border-2 border-white animate-bounce shadow-lg text-lg">+{pendingDraw}</div>}
+      {/*  ZONE 3 : Défausse + Pioche (centre) */}
+      <div className="relative z-10 flex-1 flex items-center justify-center px-2 min-h-0">
+        <div className="flex items-center justify-center gap-2 md:gap-8">
+          {/* Défausse */}
+          <div className="flex flex-col items-center">
+            <div className="relative">
+              <PlayingCard card={topCard} className="w-16 h-24 md:w-32 md:h-44 shadow-2xl" />
+              {pendingDraw > 0 && (
+                <div className="absolute -top-2 -right-2 bg-red-600 text-white font-bold rounded-full w-6 h-6 md:w-10 md:h-10 flex items-center justify-center border border-white animate-bounce shadow-lg text-xs md:text-lg">
+                  +{pendingDraw}
+                </div>
+              )}
+            </div>
+            <span className="mt-1 text-white text-[9px] md:text-xs font-bold bg-black/60 px-2 py-0.5 rounded-full">DÉFAUSSE</span>
           </div>
-          <span className="mt-2 text-white text-xs font-bold bg-black/60 px-3 py-1 rounded-full">DÉFAUSSE</span>
-        </div>
-        <div className="flex flex-col items-center">
-          <button onClick={() => isPlayerTurn && handleDrawCard()} disabled={drawButtonDisabled} className="cursor-pointer disabled:cursor-not-allowed transition-transform hover:scale-110 active:scale-95">
-            <PlayingCard isFaceDown className="w-28 h-40 md:w-32 md:h-44 shadow-2xl" />
-          </button>
-          <span className="mt-2 text-white text-xs font-bold bg-black/60 px-3 py-1 rounded-full">PIOCHE ({gameState.deck.length})</span>
+
+          {/* Pioche */}
+          <div className="flex flex-col items-center">
+            <button 
+              onClick={() => isPlayerTurn && handleDrawCard()} 
+              disabled={drawButtonDisabled} 
+              className="cursor-pointer disabled:cursor-not-allowed transition-transform hover:scale-105 active:scale-95"
+            >
+              <PlayingCard isFaceDown className="w-16 h-24 md:w-32 md:h-44 shadow-2xl" />
+            </button>
+            <span className="mt-1 text-white text-[9px] md:text-xs font-bold bg-black/60 px-2 py-0.5 rounded-full">
+              PIOCHE ({gameState.deck.length})
+            </span>
+          </div>
         </div>
       </div>
 
-      <div className="absolute bottom-0 left-0 right-0 z-10 flex flex-col items-center pb-4 px-4">
-        <div className="relative mb-2 flex items-center gap-3 w-full max-w-md justify-center">
-          <div className={`w-16 h-16 md:w-20 md:h-20 rounded-full border-4 ${isPlayerTurn ? 'border-yellow-400 animate-pulse' : 'border-white/50'} overflow-hidden shadow-2xl bg-gray-800 flex-shrink-0`}>
+      {/*  ZONE 4 : Avatar joueur + Message (entre défausse et cartes) */}
+      <div className="relative z-10 flex-shrink-0 flex flex-col items-center px-2 py-1">
+        <div className="flex items-center gap-2 mb-1 w-full max-w-md justify-center">
+          <div className={`w-10 h-10 md:w-16 md:h-16 rounded-full border-2 md:border-4 ${isPlayerTurn ? 'border-yellow-400 animate-pulse' : 'border-white/50'} overflow-hidden shadow-2xl bg-gray-800 flex-shrink-0`}>
             <img src={playerAvatar} alt={playerName} className="w-full h-full object-cover" />
           </div>
-          <div className="flex flex-col items-start min-w-0 flex-1">
-            <div className="bg-blue-600 text-white text-sm md:text-base font-bold px-4 py-1.5 rounded-full border-2 border-white shadow-lg whitespace-nowrap mb-1">
-              {playerName}
-            </div>
+          <div className="bg-blue-600 text-white text-xs md:text-base font-bold px-3 md:px-4 py-1 rounded-full border-2 border-white shadow-lg whitespace-nowrap">
+            {playerName}
           </div>
-          {isPlayerTurn && <div className="absolute -top-1 right-0 md:-right-1 bg-yellow-400 rounded-full p-1.5 shadow-lg animate-pulse"><Trophy className="w-5 h-5 text-red-700" /></div>}
+          {isPlayerTurn && <div className="bg-yellow-400 rounded-full p-0.5 md:p-1 shadow-lg"><Trophy className="w-3 h-3 md:w-5 md:h-5 text-red-700" /></div>}
         </div>
 
         {instructionMessage && (
-          <div className="mb-3 w-full max-w-md bg-gray-700/90 backdrop-blur-sm rounded-lg px-4 py-2.5 border-2 border-gray-500 shadow-lg">
-            <p className="text-white text-sm md:text-base font-bold text-center">
+          <div className="w-full max-w-md bg-gray-700/90 backdrop-blur-sm rounded-lg px-3 py-1.5 border border-gray-500 shadow-lg">
+            <p className="text-white text-[10px] md:text-sm font-bold text-center">
               {instructionMessage}
             </p>
           </div>
         )}
+      </div>
 
-        <div className="flex justify-center items-end gap-2 flex-wrap mb-3 px-4 w-full overflow-x-auto pb-2">
-          {sortedPlayerHand.map((card) => {
-            const playable = isPlayable(card, topCard, forcedSuit, pendingDraw, jokerPendingDraw) && isPlayerTurn;
-            return (
-              <div key={card.id} className="flex-shrink-0">
-                <PlayingCard 
-                  card={card} 
-                  isPlayable={playable} 
-                  onPlay={handlePlayCard} 
-                  className="w-16 h-24 md:w-20 md:h-28" 
-                />
-              </div>
-            );
-          })}
+      {/*  ZONE 5 : Main du joueur (en bas, avec scroll) */}
+      <div className="relative z-10 flex-shrink-0 flex flex-col items-center pb-2 px-2">
+        <div className="w-full overflow-x-auto pb-2">
+          <div className="flex justify-start items-end gap-1 px-1 min-w-max">
+            {sortedPlayerHand.map((card) => {
+              const playable = isPlayable(card, topCard, forcedSuit, pendingDraw, jokerPendingDraw) && isPlayerTurn;
+              return (
+                <div key={card.id} className="flex-shrink-0">
+                  <PlayingCard 
+                    card={card} 
+                    isPlayable={playable} 
+                    onPlay={handlePlayCard} 
+                    className="w-11 h-16 md:w-20 md:h-28" 
+                  />
+                </div>
+              );
+            })}
+          </div>
         </div>
 
-        <div className="flex gap-3 mt-4">
-          <Button onClick={handleDrawCard} disabled={drawButtonDisabled} className="bg-gradient-to-b from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-black font-black border-b-4 border-yellow-800 shadow-lg text-lg px-8 py-6">
+        {/* Boutons */}
+        <div className="flex flex-wrap justify-center gap-2 w-full">
+          <Button 
+            onClick={handleDrawCard} 
+            disabled={drawButtonDisabled} 
+            size="sm"
+            className="bg-gradient-to-b from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-black font-black border-b-2 md:border-b-4 border-yellow-800 shadow-lg text-xs md:text-lg px-3 md:px-8 py-1 md:py-3"
+          >
             {pendingDraw > 0 ? `Piocher ${pendingDraw}` : 'Piocher'}
           </Button>
           {canPlayerEndTurn && (
-            <Button onClick={handleEndTurn} disabled={!isPlayerTurn} className="bg-gradient-to-b from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 text-white font-bold border-b-4 border-blue-900 shadow-lg">
+            <Button 
+              onClick={handleEndTurn} 
+              disabled={!isPlayerTurn} 
+              size="sm"
+              className="bg-gradient-to-b from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 text-white font-bold border-b-2 md:border-b-4 border-blue-900 shadow-lg text-xs md:text-base px-3 md:px-6 py-1 md:py-2"
+            >
               Passer le tour
             </Button>
           )}
