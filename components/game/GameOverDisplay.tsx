@@ -44,6 +44,8 @@ export function GameOverDisplay({
   
   // ✅ COMPTE À REBOURS DE 5 SECONDES
   const [waitTime, setWaitTime] = useState(5);
+  const [soundPlayCount, setSoundPlayCount] = useState(0);
+  const MAX_SOUND_PLAYS = 3; // ✅ Limite à 3 répétitions
 
   useEffect(() => {
     let winnerName = '';
@@ -51,7 +53,19 @@ export function GameOverDisplay({
     else if (winner && typeof winner === 'object' && 'name' in winner) winnerName = winner.name;
     
     if (winnerName === 'player') {
-      playVictory();
+      // ✅ Jouer le son de victoire en boucle limitée à 3 fois
+      const playSoundLoop = () => {
+        if (soundPlayCount < MAX_SOUND_PLAYS) {
+          playVictory();
+          setSoundPlayCount(prev => prev + 1);
+          
+          // Le son dure environ 2-3 secondes, on rejoue après
+          const timeout = setTimeout(playSoundLoop, 2500);
+          return () => clearTimeout(timeout);
+        }
+      };
+      
+      playSoundLoop();
     } else {
       playDefeat();
     }
@@ -89,7 +103,14 @@ export function GameOverDisplay({
     } else {
       setShowRewards(true);
     }
-  }, [winner, userId, currentStats, difficulty, playVictory, playDefeat, playAchievement]);
+  }, [winner, userId, currentStats, difficulty, playVictory, playDefeat, playAchievement, soundPlayCount]);
+
+  // ✅ Réinitialiser le compteur quand on quitte l'écran
+  useEffect(() => {
+    return () => {
+      setSoundPlayCount(0);
+    };
+  }, []);
 
   // ✅ COMPTE À REBOURS AUTOMATIQUE (décrémente chaque seconde)
   useEffect(() => {
@@ -101,11 +122,13 @@ export function GameOverDisplay({
 
   const handlePlayAgain = () => {
     if (waitTime > 0) return; // ✅ Empêche le clic avant la fin du compte à rebours
+    setSoundPlayCount(0); // ✅ Reset du compteur
     onPlayAgain();
   };
 
   const handleQuit = () => {
     if (waitTime > 0) return; // ✅ Empêche le clic avant la fin du compte à rebours
+    setSoundPlayCount(0); // ✅ Reset du compteur
     router.push('/menu');
   };
 
@@ -174,7 +197,7 @@ export function GameOverDisplay({
                       {id === 'win_10' && '⚔️ Guerrier'}
                       {id === 'win_50' && ' Champion'}
                       {id === 'win_100' && '🌟 Légende'}
-                      {id === 'play_10' && '🎮 Habitué'}
+                      {id === 'play_10' && ' Habitué'}
                       {id === 'play_50' && ' Accro'}
                       {id === 'play_100' && '💪 Vétéran'}
                       {id === 'hard_win' && '🧠 Maître Stratège'}
