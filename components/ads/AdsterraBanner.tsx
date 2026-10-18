@@ -17,7 +17,6 @@ export function AdsterraBanner({ type }: AdsterraBannerProps) {
     const container = containerRef.current;
     container.innerHTML = '';
 
-    // Configuration selon le type
     const configs = {
       banner300x250: {
         key: '6e08001f3622d8b183b5cd0a831c851d',
@@ -40,14 +39,12 @@ export function AdsterraBanner({ type }: AdsterraBannerProps) {
     const config = configs[type];
 
     if (type === 'native') {
-      // Format Native Banner
       const script = document.createElement('script');
       script.async = true;
       script.src = config.scriptSrc;
       container.id = config.containerId;
       container.appendChild(script);
     } else {
-      // Format Banner classique (300x250 ou 728x90)
       const atOptionsScript = document.createElement('script');
       atOptionsScript.innerHTML = `
         atOptions = {
@@ -55,7 +52,7 @@ export function AdsterraBanner({ type }: AdsterraBannerProps) {
           'format': 'iframe',
           'height': ${config.height},
           'width': ${config.width},
-          'params': {}
+          'params' : {}
         };
       `;
       container.appendChild(atOptionsScript);
@@ -73,20 +70,15 @@ export function AdsterraBanner({ type }: AdsterraBannerProps) {
     };
   }, [type]);
 
-  const dimensions = type === 'banner300x250' 
-    ? { width: '300px', height: '250px' }
-    : type === 'banner728x90'
-    ? { width: '728px', height: '90px' }
-    : { width: '100%', height: 'auto' };
-
   return (
     <div 
       ref={containerRef}
       className="flex items-center justify-center bg-gray-50 rounded-lg overflow-hidden"
       style={{ 
-        width: dimensions.width, 
-        minHeight: dimensions.height,
-        minWidth: dimensions.width 
+        width: '300px',  // ✅ Largeur fixe à 300px
+        height: '250px', // ✅ Hauteur fixe à 250px
+        maxWidth: '100%',
+        margin: '0 auto' // ✅ Centrage
       }}
     >
       <span className="text-gray-400 text-xs select-none">Chargement...</span>
