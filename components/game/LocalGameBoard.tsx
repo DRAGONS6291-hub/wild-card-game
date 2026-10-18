@@ -113,7 +113,7 @@ export function LocalGameBoard({ initialGameState }: { initialGameState: LocalGa
       {/* Bordure dorée */}
       <div className="absolute inset-1 md:inset-4 border-2 md:border-8 border-amber-900/40 rounded-xl md:rounded-[3rem] pointer-events-none"></div>
 
-      {winner && <GameOverDisplay winner={{name: winner.name}} onPlayAgain={handlePlayAgain} />}
+      {winner && <GameOverDisplay winner={{name: winner.name}} />}
       <SuitChoiceDialog isOpen={isSuitPickerOpen} onSuitChoose={handleSuitChoice} />
       <PassTurnDialog isOpen={isPassingTurn && !winner} onPassTurn={handlePassTurn} nextPlayerName={players[(currentPlayerIndex + 1) % players.length].name} />
       

@@ -1,6 +1,6 @@
 'use client';
 import { Button } from "@/components/ui/button";
-import { Trophy, Loader2, Sparkles, Star, Home, Clock } from 'lucide-react';
+import { Trophy, Sparkles, Star, Home, Clock } from 'lucide-react';
 import React, { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSound } from '@/hooks/useSound';
@@ -12,7 +12,6 @@ import { supabase } from '@/lib/supabase';
 
 interface GameOverDisplayProps { 
   winner: string | { name: string }; 
-  onPlayAgain: () => void;
   difficulty?: 'easy' | 'medium' | 'hard';
   userId?: string;
   currentStats?: {
@@ -29,7 +28,6 @@ const ConfettiPiece = ({ id, style }: { id: number; style: React.CSSProperties }
 
 export function GameOverDisplay({ 
   winner, 
-  onPlayAgain, 
   difficulty = 'medium',
   userId,
   currentStats
@@ -41,47 +39,72 @@ export function GameOverDisplay({
   const [newLevel, setNewLevel] = useState<number | null>(null);
   const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>([]);
   const [showRewards, setShowRewards] = useState(false);
-  
-  // ✅ COMPTE À REBOURS DE 5 SECONDES POUR LES BOUTONS
   const [waitTime, setWaitTime] = useState(5);
-
-  // ✅ RÉFÉRENCES POUR LE SON (Beaucoup plus fiable que useState pour les boucles)
+  
+  const soundPlayCountRef = useRef(0);
   const soundTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const playCountRef = useRef(0);
-  const MAX_PLAYS = 3;
+  const MAX_SOUND_PLAYS = 3;
+  const hasPlayedRef = useRef(false);
 
   useEffect(() => {
     let winnerName = '';
     if (typeof winner === 'string') winnerName = winner;
     else if (winner && typeof winner === 'object' && 'name' in winner) winnerName = winner.name;
     
-    // Réinitialiser le compteur à chaque nouvel affichage de l'écran de fin
-    playCountRef.current = 0;
-    
-    if (winnerName === 'player') {
-      const triggerSound = () => {
-        if (playCountRef.current < MAX_PLAYS) {
+    if (winnerName === 'player' && !hasPlayedRef.current) {
+      hasPlayedRef.current = true;
+      soundPlayCountRef.current = 0;
+      
+      const playNext = () => {
+        if (soundPlayCountRef.current < MAX_SOUND_PLAYS) {
           playVictory();
-          playCountRef.current += 1;
-          // Programme la prochaine lecture dans 2.5 secondes
-          soundTimerRef.current = setTimeout(triggerSound, 2500);
+          soundPlayCountRef.current += 1;
+          soundTimerRef.current = setTimeout(playNext, 2500);
         }
       };
-      triggerSound();
-    } else {
+      playNext();
+    } else if (winnerName !== 'player') {
       playDefeat();
     }
 
-    // 🛑 NETTOYAGE OBLIGATOIRE : Arrête tout immédiatement quand on quitte l'écran (ex: retour au menu)
+    if (userId && currentStats) {
+      const won = winnerName === 'player';
+      const xpReward = calculateXpReward(won, difficulty);
+      const newXp = Math.max(0, currentStats.xp + xpReward);
+      const levelInfo = getLevelInfo(newXp);
+      
+      setXpGained(xpReward);
+      if (levelInfo.level > currentStats.level) {
+        setNewLevel(levelInfo.level);
+      }
+
+      supabase.from('profiles').update({ xp: newXp, level: levelInfo.level }).eq('id', userId);
+
+      checkAndUnlockAchievements(userId, {
+        wins: won ? currentStats.wins + 1 : currentStats.wins,
+        totalGames: currentStats.totalGames + 1,
+        level: levelInfo.level,
+        totalXp: newXp,
+        wonOnHard: won && difficulty === 'hard',
+      }).then((newlyUnlocked) => {
+        if (newlyUnlocked.length > 0) {
+          setUnlockedAchievements(newlyUnlocked);
+          if (typeof playAchievement === 'function') playAchievement();
+        }
+        setShowRewards(true);
+      });
+    } else {
+      setShowRewards(true);
+    }
+
     return () => {
       if (soundTimerRef.current) {
         clearTimeout(soundTimerRef.current);
         soundTimerRef.current = null;
       }
     };
-  }, [winner, playVictory, playDefeat]); // Dépendances simplifiées pour éviter les boucles infinies
+  }, [winner, userId, currentStats, difficulty, playVictory, playDefeat, playAchievement]);
 
-  // ✅ COMPTE À REBOURS AUTOMATIQUE (décrémente chaque seconde)
   useEffect(() => {
     if (waitTime > 0) {
       const timer = setTimeout(() => setWaitTime(waitTime - 1), 1000);
@@ -89,23 +112,14 @@ export function GameOverDisplay({
     }
   }, [waitTime]);
 
-  const handlePlayAgain = () => {
-    if (waitTime > 0) return;
-    // Nettoyage manuel du son si on rejoue immédiatement
-    if (soundTimerRef.current) {
-      clearTimeout(soundTimerRef.current);
-      soundTimerRef.current = null;
-    }
-    onPlayAgain();
-  };
-
   const handleQuit = () => {
     if (waitTime > 0) return;
-    // Nettoyage manuel du son si on quitte immédiatement
     if (soundTimerRef.current) {
       clearTimeout(soundTimerRef.current);
       soundTimerRef.current = null;
     }
+    soundPlayCountRef.current = 0;
+    hasPlayedRef.current = false;
     router.push('/menu');
   };
 
@@ -134,39 +148,26 @@ export function GameOverDisplay({
         <Trophy className="w-16 h-16 mx-auto text-yellow-500 mb-4" />
         <h2 className="text-2xl md:text-3xl font-black mb-4 text-gray-800">{message}</h2>
         
-        {/* Récompenses XP et succès */}
         {showRewards && (xpGained !== 0 || newLevel || unlockedAchievements.length > 0) && (
           <div className="my-4 p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border-2 border-purple-200 space-y-3">
             {xpGained !== 0 && (
-              <div className={`flex items-center justify-center gap-2 font-bold ${
-                xpGained > 0 ? 'text-purple-700' : 'text-red-600'
-              }`}>
+              <div className={`flex items-center justify-center gap-2 font-bold ${xpGained > 0 ? 'text-purple-700' : 'text-red-600'}`}>
                 {xpGained > 0 ? (
-                  <>
-                    <Sparkles className="w-5 h-5" />
-                    <span>+{xpGained} XP</span>
-                  </>
+                  <><Sparkles className="w-5 h-5" /><span>+{xpGained} XP</span></>
                 ) : (
-                  <>
-                    <span className="text-2xl">😢</span>
-                    <span>{xpGained} XP</span>
-                  </>
+                  <><span className="text-2xl">😢</span><span>{xpGained} XP</span></>
                 )}
               </div>
             )}
-            
             {newLevel && (
               <div className="flex items-center justify-center gap-2 text-yellow-600 font-black animate-pulse">
                 <Star className="w-5 h-5" fill="currentColor" />
                 <span>Niveau {newLevel} atteint !</span>
               </div>
             )}
-            
             {unlockedAchievements.length > 0 && (
               <div className="pt-2 border-t border-purple-200">
-                <p className="text-xs font-bold text-purple-600 mb-2 uppercase">
-                  🏆 Succès débloqué{unlockedAchievements.length > 1 ? 's' : ''} !
-                </p>
+                <p className="text-xs font-bold text-purple-600 mb-2 uppercase">🏆 Succès débloqué{unlockedAchievements.length > 1 ? 's' : ''} !</p>
                 <div className="flex flex-wrap gap-1 justify-center">
                   {unlockedAchievements.map(id => (
                     <div key={id} className="text-sm bg-white/70 px-3 py-1 rounded-full">
@@ -190,38 +191,15 @@ export function GameOverDisplay({
           </div>
         )}
 
-        {/* ✅ PUB MONETAG (invisible mais nécessaire pour charger le script) */}
         <div className="hidden">
           <BannerAd zoneId="12054544" />
         </div>
 
-        {/* ✅ BANNIÈRE ADSTERRA 300x250 */}
         <div className="my-6 flex justify-center">
           <AdsterraBanner type="banner300x250" />
         </div>
 
-        {/* ✅ BOUTONS D'ACTION AVEC COMPTE À REBOURS */}
         <div className="space-y-3">
-          <Button 
-            onClick={handlePlayAgain} 
-            disabled={waitTime > 0}
-            size="lg" 
-            className={`w-full py-6 text-lg flex items-center justify-center gap-2 font-black border-b-4 shadow-lg transition-all ${
-              waitTime > 0 
-                ? 'bg-gray-300 text-gray-500 border-gray-400 cursor-not-allowed' 
-                : 'bg-gradient-to-b from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-black border-yellow-800'
-            }`}
-          >
-            {waitTime > 0 ? (
-              <>
-                <Clock className="w-5 h-5 animate-pulse" />
-                Attendez {waitTime}s...
-              </>
-            ) : (
-              'Rejouer'
-            )}
-          </Button>
-
           <Button 
             onClick={handleQuit}
             disabled={waitTime > 0}
@@ -233,8 +211,11 @@ export function GameOverDisplay({
                 : 'border-2 border-gray-300 text-gray-700 hover:bg-gray-100 hover:border-gray-400'
             }`}
           >
-            <Home className="w-5 h-5" />
-            Retour au menu
+            {waitTime > 0 ? (
+              <><Clock className="w-5 h-5 animate-pulse" /> Attendez {waitTime}s...</>
+            ) : (
+              <><Home className="w-5 h-5" /> Retour au menu</>
+            )}
           </Button>
         </div>
       </div>
