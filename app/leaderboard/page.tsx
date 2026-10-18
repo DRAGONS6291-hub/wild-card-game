@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { Trophy, Medal, ArrowLeft, User, Sparkles, Star } from 'lucide-react';
+import { AdsterraBanner } from '@/components/ads/AdsterraBanner';
 
 interface LeaderboardEntry {
   id: string;
@@ -171,6 +172,18 @@ export default function LeaderboardPage() {
               })}
             </div>
           )}
+        </div>
+
+        {/* ✅ BANNIÈRE PUBLICITAIRE EN BAS DU CLASSEMENT */}
+        <div className="mt-6 flex flex-col items-center">
+          <div className="bg-gradient-to-r from-red-900/80 to-red-800/80 rounded-xl p-4 border-2 border-yellow-400/50 w-full max-w-md">
+            <p className="text-yellow-400 text-xs font-bold text-center mb-3 uppercase tracking-wider">
+              Sponsorisé
+            </p>
+            <div className="flex justify-center">
+              <AdsterraBanner type="banner300x250" />
+            </div>
+          </div>
         </div>
       </div>
     </div>
