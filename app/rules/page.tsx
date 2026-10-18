@@ -1,6 +1,7 @@
 'use client';
 import { ArrowLeft, Target, Sparkles, RefreshCw, Palette, Trophy, Layers } from 'lucide-react';
 import Link from 'next/link';
+import { AdsterraBanner } from '@/components/ads/AdsterraBanner';
 
 export default function RulesPage() {
   return (
@@ -24,14 +25,13 @@ export default function RulesPage() {
           <div className="flex items-start gap-4">
             <div className="bg-blue-100 p-3 rounded-full flex-shrink-0"><Target className="w-6 h-6 text-blue-600" /></div>
             <div>
-              <h2 className="text-xl font-black text-gray-800 mb-2"> But du jeu</h2>
+              <h2 className="text-xl font-black text-gray-800 mb-2">🎯 But du jeu</h2>
               <p className="text-gray-700">Être le premier joueur à se débarrasser de <strong>toutes ses cartes</strong>. Le premier qui pose sa dernière carte remporte la victoire !</p>
             </div>
           </div>
 
           <div className="border-t-2 border-gray-200"></div>
 
-          {/* ✅ NOUVELLE SECTION : Règles de base */}
           <div className="flex items-start gap-4">
             <div className="bg-indigo-100 p-3 rounded-full flex-shrink-0"><Layers className="w-6 h-6 text-indigo-600" /></div>
             <div>
@@ -107,6 +107,18 @@ export default function RulesPage() {
             </div>
           </div>
 
+        </div>
+
+        {/* ✅ BANNIÈRE PUBLICITAIRE EN BAS DES RÈGLES */}
+        <div className="mt-6 flex flex-col items-center pb-8">
+          <div className="bg-gradient-to-r from-red-900/80 to-red-800/80 rounded-xl p-4 border-2 border-yellow-400/50 w-full max-w-md">
+            <p className="text-yellow-400 text-xs font-bold text-center mb-3 uppercase tracking-wider">
+              Sponsorisé
+            </p>
+            <div className="flex justify-center">
+              <AdsterraBanner type="banner300x250" />
+            </div>
+          </div>
         </div>
       </div>
     </div>

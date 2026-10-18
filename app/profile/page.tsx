@@ -6,6 +6,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Save, User } from 'lucide-react';
 import { getLevelInfo, getTitleForLevel } from '@/lib/level-system';
+import { AdsterraBanner } from '@/components/ads/AdsterraBanner';
 
 // 48 AVATARS DESSINÉS - Organisés par catégorie
 const AVATARS = [
@@ -37,7 +38,7 @@ const AVATARS = [
   'https://api.dicebear.com/7.x/fun-emoji/svg?seed=Monkey&backgroundColor=ffdfbf',
   'https://api.dicebear.com/7.x/fun-emoji/svg?seed=Koala&backgroundColor=b6e3f4',
 
-  //  ROBOTS & OBJETS (12) - Style bottts
+  // 🤖 ROBOTS & OBJETS (12) - Style bottts
   'https://api.dicebear.com/7.x/bottts/svg?seed=Robot1&backgroundColor=b6e3f4',
   'https://api.dicebear.com/7.x/bottts/svg?seed=Robot2&backgroundColor=ffd5dc',
   'https://api.dicebear.com/7.x/bottts/svg?seed=Robot3&backgroundColor=c0aede',
@@ -67,16 +68,12 @@ const AVATARS = [
 ];
 
 const AVATAR_LABELS = [
-  // Humains (1-12)
   'John', 'Sarah', 'Mike', 'Emma', 'Lucas', 'Sophie',
   'Tom', 'Lily', 'Max', 'Anna', 'Leo', 'Mia',
-  // Animaux (13-24)
   'Chat', 'Chien', 'Panda', 'Renard', 'Ours', 'Lapin',
   'Hibou', 'Lion', 'Tigre', 'Pingouin', 'Singe', 'Koala',
-  // Robots (25-36)
   'Robot 1', 'Robot 2', 'Robot 3', 'Robot 4', 'Robot 5', 'Robot 6',
   'Robot 7', 'Robot 8', 'Robot 9', 'Robot 10', 'Robot 11', 'Robot 12',
-  // Fantasy (37-48)
   'Elfe', 'Fée', 'Sorcier', 'Chevalier', 'Dragon', 'Licorne',
   'Sirène', 'Ninja', 'Pirate', 'Vampire', 'Fantôme', 'Alien',
 ];
@@ -281,6 +278,18 @@ export default function ProfilePage() {
             <Save className="w-5 h-5" />
             {saving ? 'Sauvegarde...' : 'Sauvegarder mon profil'}
           </Button>
+        </div>
+
+        {/* ✅ BANNIÈRE PUBLICITAIRE EN BAS DU PROFIL */}
+        <div className="mt-6 flex flex-col items-center pb-8">
+          <div className="bg-gradient-to-r from-red-900/80 to-red-800/80 rounded-xl p-4 border-2 border-yellow-400/50 w-full max-w-md">
+            <p className="text-yellow-400 text-xs font-bold text-center mb-3 uppercase tracking-wider">
+              Sponsorisé
+            </p>
+            <div className="flex justify-center">
+              <AdsterraBanner type="banner300x250" />
+            </div>
+          </div>
         </div>
       </div>
     </div>
