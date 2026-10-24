@@ -35,6 +35,12 @@ export function GameBoard({ initialGameState }: { initialGameState: GameState })
 
   const gameStateRef = useRef(gameState);
   useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
+  // ✅ Remet scoreSaved à false quand une nouvelle partie commence
+  useEffect(() => {
+    if (!gameState.winner && scoreSaved) {
+      setScoreSaved(false);
+    }
+  }, [gameState.winner, scoreSaved]);
   useEffect(() => { const timer = setInterval(() => setGameTime(t => t + 1), 1000); return () => clearInterval(timer); }, []);
   useEffect(() => {
     if (gameState.gameMessage?.includes("erreur") || gameState.gameMessage?.includes("problème")) {
