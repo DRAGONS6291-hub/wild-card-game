@@ -212,80 +212,14 @@ export default function MultiplayerRoomPage() {
   }, [gameState?.status, gameState?.winner, isPlayer1, soundPlayCount, playVictory]);
 
   useEffect(() => {
-      if (gameState?.status !== 'finished') {
-        setXpGained(null);
-        setNewLevel(null);
-        setScoreSaved(false);
-        // ✅ Nettoyer le sessionStorage quand la partie n'est plus finie
-        const savedKey = `saved_${gameId}`;
-        sessionStorage.removeItem(savedKey);
-        return;
-      }
-    
+    if (gameState?.status !== 'finished') {
+      setXpGained(null);
+      setNewLevel(null);
+      setScoreSaved(false);
       const savedKey = `saved_${gameId}`;
-      if (sessionStorage.getItem(savedKey) === 'true') {
-        return;
-      }
-    
-      if (profile && userId && !scoreSaved && gameId) {
-        const isWin = gameState.winner === (isPlayer1 ? 1 : 2);
-      
-        if (!isWin) {
-          playDefeat();
-       }
-
-       const saveScoreAndXp = async () => {
-         try {
-           await supabase.from('scores').insert({
-             user_id: userId, pseudo: profile.pseudo, difficulty: 'multiplayer', result: isWin ? 'win' : 'loss', cards_remaining: isWin ? 0 : myHand.length
-           });
-
-           const xpReward = calculateXpReward(isWin);
-           const newTotalXp = Math.max(0, (profile.xp || 0) + xpReward);
-           const levelInfo = getLevelInfo(newTotalXp);
-           const calculatedNewLevel = levelInfo.level;
-
-           await supabase.from('profiles').update({ xp: newTotalXp, level: calculatedNewLevel }).eq('id', userId);
-
-           const { data: lbData } = await supabase.from('leaderboard').select('*').eq('id', userId).single();
-          
-           if (lbData) {
-             const newWins = isWin ? (lbData.wins || 0) + 1 : (lbData.wins || 0);
-             const newLosses = !isWin ? (lbData.losses || 0) + 1 : (lbData.losses || 0);
-             const newTotalGames = (lbData.total_games || 0) + 1;
-             const newWinRate = newTotalGames > 0 ? (newWins / newTotalGames) * 100 : 0;
-
-             await supabase.from('leaderboard').update({
-               wins: newWins,
-               losses: newLosses,
-               total_games: newTotalGames,
-               win_rate: newWinRate,
-               xp: newTotalXp,
-               level: calculatedNewLevel
-             }).eq('id', userId);
-           } else {
-             await supabase.from('leaderboard').insert({
-               id: userId,
-               pseudo: profile.pseudo,
-               avatar_url: profile.avatar_url,
-               wins: isWin ? 1 : 0,
-               losses: isWin ? 0 : 1,
-               total_games: 1,
-               win_rate: isWin ? 100 : 0,
-               xp: newTotalXp,
-               level: calculatedNewLevel
-             });
-           }
-
-           sessionStorage.setItem(savedKey, 'true');
-           setXpGained(xpReward);
-           setNewLevel(calculatedNewLevel);
-           setScoreSaved(true);
-         } catch (err) { console.error('Erreur sauvegarde:', err); }
-       };
-       saveScoreAndXp();
-     }
-   }, [gameState?.status, gameState?.winner, profile, userId, scoreSaved, isPlayer1, myHand.length, playDefeat, gameId]);
+      sessionStorage.removeItem(savedKey);
+      return;
+    }
     
     const savedKey = `saved_${gameId}`;
     if (sessionStorage.getItem(savedKey) === 'true') {
@@ -744,7 +678,6 @@ export default function MultiplayerRoomPage() {
               </div>
             )}
 
-            {/* ✅ BANNIÈRE ADSTERRA 300x250 + PUB MONETAG CACHÉE */}
             <div className="hidden">
               <BannerAd zoneId="12054544" />
             </div>
@@ -753,7 +686,6 @@ export default function MultiplayerRoomPage() {
             </div>
             
             <div className="space-y-3 max-w-md mx-auto">
-              {/* ✅ SEUL BOUTON : RETOUR AU MENU AVEC TIMER DE 5s */}
               <Button 
                 onClick={handleQuit} 
                 disabled={waitTime > 0}
